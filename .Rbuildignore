@@ -1,0 +1,10 @@
+^LICENSE\.md$
+^Meta$
+^README\.Rmd$
+^\.git$
+^\.github$
+^article$
+^data-raw$
+^design$
+^dev$
+^doc$

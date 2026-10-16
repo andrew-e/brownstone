@@ -1,0 +1,158 @@
+---
+title: "Getting started with brownstone"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Getting started with brownstone}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 8,
+  fig.height = 4.6,
+  dpi = 80,
+  out.width = "100%"
+)
+```
+
+A classic Manhattan plot shows one thing: how significant each variant is. A Brownstone plot adds the three things people usually look up afterwards:
+
+- **How big is the effect?** An effect-size track under the chromosome axis puts each locus's effect, with its 95% confidence interval, directly beneath its tower.
+- **Is the signal from a common or a rare variant?** Significant variants are coloured by minor allele frequency.
+- **Which gene?** Loci are labelled with the nearest protein-coding gene, or with your own labels.
+
+```{r setup}
+library(brownstone)
+```
+
+## A first plot
+
+`simulate_gwas()` makes realistic summary statistics: common causal variants with LD towers, rare causal variants that stand alone, and an allele frequency spectrum down to MAF ≈ 0.03%. Use it to try things out.
+
+```{r first}
+gwas <- simulate_gwas(n_variants = 2e5)
+head(gwas, 3)
+brownstone(gwas)
+```
+
+### Reading it
+
+- **Grey floor:** every variant below the significance line.
+- **Coloured points:** variants with *P* < 5 × 10^-8^, coloured by minor allele frequency: blue ≥ 5%, aqua 1–5%, orange 0.1–1%, berry < 0.1%. The colours are distinguishable with any common form of colour blindness.
+- **Labels:** the nearest protein-coding gene to each locus's lead variant (Ensembl; set `build = "GRCh37"` for hg19 positions).
+- **Broken y axis:** if anything passes −log~10~ *P* = 20, the axis breaks there and the tail goes on a compressed log scale, keeping most of the height for the region around the threshold.
+- **Effect track:** \|β\| for every hit, i.e. the effect per copy of the trait-increasing allele (for odds ratios, the OR of the risk allele). Lead variants are the large points with confidence intervals; the small points are the other hits, mostly LD proxies sitting just below their lead. LD only ever shrinks a proxy's expected effect, so a point clearly above its lead suggests a second signal at that locus. The axis is linear unless a few effects dwarf the rest, in which case it breaks like the *P*-value axis.
+
+## Your own summary statistics
+
+Columns are recognised from the usual names written by PLINK, REGENIE, BOLT-LMM, SAIGE, METAL and the GWAS-SSF standard, so most files work as they are:
+
+```{r formats, eval = FALSE}
+sumstats <- data.table::fread("my_gwas.regenie.gz", data.table = FALSE)
+brownstone(sumstats, build = "GRCh38")
+```
+
+Anything unusual can be named explicitly:
+
+```{r explicit, eval = FALSE}
+brownstone(sumstats, chr = "CHR", pos = "BP", p = "P-value",
+              eaf = "Freq.A1.1000G.EUR", build = "GRCh37")
+```
+
+Only chromosome, position and *P* (or −log~10~ *P*) are required. Without effect and standard error columns there is no effect track; without allele frequencies, hits are drawn in one colour. Odds-ratio columns are used on the log scale. *P*-values too small for a double (written as text such as `1.24e-652`) are read exactly.
+
+`standardise_sumstats()` shows what was detected:
+
+```{r standardise}
+s <- standardise_sumstats(gwas, quiet = FALSE)
+```
+
+## Suggestive hits
+
+`suggestive = 1e-5` adds a second line. Peaks that reach it but not genome-wide significance are drawn as hollow rings in their frequency colour, labelled in grey, and shown on the effect track as hollow points.
+
+```{r suggestive}
+brownstone(gwas, suggestive = 1e-5)
+```
+
+Variants between the two lines that belong to a genome-wide significant locus stay grey: they are the base of its tower, not a peak of their own. In very large sequencing-based GWAS the suggestive band fills with chance hits from rare variants, whose large standard errors also put them high on the effect track. `track_suggestive = FALSE` keeps them off it.
+
+## The effect track
+
+```{r effects, fig.height = 4.2}
+brownstone(gwas, track_variants = "leads")   # one point per locus
+brownstone(gwas, effects = "signed")         # beta with its sign, leads only
+```
+
+The sign of a single variant's β only says which allele the GWAS reported, so it is left out by default. With `effects = "signed"` effects are oriented to the minor allele (where an effect-allele frequency is available) and only lead variants are drawn, because LD proxies are reported against arbitrary alleles. `effect_scale = "sqrt"` gives a smooth square-root axis instead of the reactive linear one.
+
+## Colours
+
+```{r continuous, fig.height = 4.2}
+brownstone(gwas, maf_scale = "continuous")
+```
+
+The continuous scale colours by log~10~(MAF), with every variant above 10% in one colour so that towers of common variants stay uniform. `maf_breaks` changes the class boundaries, and `colours` takes your own palette. `maf_colours()` and `maf_ramp()` return the defaults.
+
+## Labels
+
+```{r labels}
+loci <- find_loci(gwas)
+loci[1:5, c("chr", "pos", "snp", "p", "beta", "maf", "gene")]
+```
+
+`find_loci()` returns the lead variant of every locus with its nearest gene. Edit it and pass it back as `labels`. An optional `fontface` column styles each label, for example to set novel loci in bold:
+
+```{r custom-labels}
+known <- c("CELSR2", "APOB", "LDLR", "APOE", "PCSK9", "HMGCR", "LPA", "CETP")
+loci$label <- loci$gene
+loci$fontface <- ifelse(loci$gene %in% known, "italic", "bold.italic")
+brownstone(gwas, labels = loci) +
+  patchwork::plot_annotation(subtitle = "Novel loci in bold")
+```
+
+`labels = "snp"` labels with variant IDs, and `labels = "<column>"` uses a column of your own (for example a gene column from FUMA or VEP).
+
+## QQ plot and genomic inflation
+
+`qq_plot()` draws the companion QQ plot, in the same colours. Each minor allele frequency class gets its own curve, compared with its own expected distribution, because rare-variant tests are often calibrated differently from common-variant ones. The genomic inflation factor λ~GC~ is printed on the plot for all variants (in the corner) and for each class (in the legend).
+
+```{r qq, fig.width = 5.5, fig.height = 5.5, out.width = "70%"}
+qq_plot(gwas)
+```
+
+- **λ~GC~** is the median of the 1-df χ² statistics implied by the *P*-values, divided by its expected value (0.455), computed from every variant. Under polygenicity the common-variant λ grows with sample size even without confounding; the LD score regression intercept tells the two apart. *P*-values already corrected by genomic control give λ ≈ 1 by construction.
+- **Rare classes** are often conservative (λ < 1, a curve below the diagonal) with saddlepoint or Firth tests of binary traits.
+- **The grey bands** are pointwise 95% intervals, one per class: smaller classes have wider bands that end earlier.
+- **Filtered files** (fewer than a quarter of *P*-values above 0.5) get a warning and no λ, because a QQ plot needs every tested variant.
+
+`by = "none"` draws a single curve.
+
+## Large GWAS
+
+Millions of variants below the threshold are thinned to one point per cell of a fine grid before plotting, which is invisible at normal sizes. On a 10-core Apple M4 laptop with 32 GB of memory, the 21.3 million variants of a FinnGen release 12 binary endpoint took about 16 s to read with `data.table::fread()`. Building the plot then took 3.8 s, and saving it as a PNG 1.1 s. The whole run peaked at 7.2 GB of memory, including the 3 GB input table.
+
+Reading only the columns the plots use saves memory and some time. For FinnGen's files, this shrank the table from 3.15 to 2.34 GB:
+
+```{r select, eval = FALSE}
+sumstats <- data.table::fread("finngen_R12_E4_HYPERCHOL.gz", data.table = FALSE,
+                              select = c("#chrom", "pos", "rsids", "nearest_genes",
+                                         "mlogp", "beta", "sebeta", "af_alt"))
+```
+
+Save with a fast raster device:
+
+```{r save, eval = FALSE}
+p <- brownstone(sumstats)
+ggplot2::ggsave("manhattan.png", p, width = 12, height = 6.5, dpi = 300,
+                device = ragg::agg_png)
+```
+
+## Caveats
+
+- The nearest gene is not necessarily the causal gene.
+- Loci are found by distance (±500 kb around the most significant variant, repeated), not by LD clumping or conditional analysis.
+- Effects are not corrected for winner's curse, which inflates rare variants and loci just past the threshold the most. Very large estimates for ultra-rare variants can also be artefacts of the association test itself.

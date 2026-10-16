@@ -1,0 +1,10 @@
+.Rproj.user
+.Rhistory
+.RData
+.DS_Store
+/doc/
+/Meta/
+Rplots.pdf
+dev/
+article/
+design/
