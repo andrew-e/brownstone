@@ -25,6 +25,11 @@
 #'   P-values under the null (from the Beta distribution of uniform order
 #'   statistics), one per class: smaller classes have wider bands that end
 #'   earlier.
+#' * **Other strata.** `by` can also name a column, for example `"chr"`, or a
+#'   binned imputation quality score kept with `keep =`. Up to four groups are
+#'   drawn as coloured curves on one plot; more get a panel each, with their
+#'   \eqn{\lambda} in the panel title, because more than four colours cannot
+#'   all stay distinguishable with colour blindness.
 #'
 #' Below the significance line, points that would be drawn on top of each
 #' other are thinned (as in [brownstone()]), so millions of variants plot
@@ -33,12 +38,16 @@
 #' @inheritParams brownstone
 #' @param by `"maf"` (the default) draws one curve per minor allele frequency
 #'   class (see `maf_breaks`); `"none"` draws one curve for all variants. Without
-#'   an allele frequency column there is one curve.
-#' @param colours One colour per frequency class, most common first (default
-#'   [maf_colours()]); for `by = "none"`, the colour of the one curve.
+#'   an allele frequency column there is one curve. Any other value names a
+#'   column of the standardised data (see [standardise_sumstats()]): `"chr"`,
+#'   or a column of `data` kept with `keep = "<column>"`. There is one curve (or
+#'   panel) per value, and variants with no value form an "Unknown" group. A
+#'   continuous column should be binned first: at most 30 groups are drawn.
+#' @param colours One colour per frequency class (or group), most common first
+#'   (default [maf_colours()]); for `by = "none"`, the colour of the one curve.
 #' @param lambda Print \eqn{\lambda_{GC}} on the plot: for all variants in the
-#'   corner of the panel and, for classes of at least 1,000 variants, in the
-#'   legend.
+#'   corner of the panel (or the subtitle, with a panel per group) and, for
+#'   classes of at least 1,000 variants, in the legend (or panel titles).
 #' @param ci Draw the pointwise 95% bands.
 #' @param threshold Genome-wide significance threshold, drawn as a line.
 #'
@@ -50,8 +59,17 @@
 qq_plot <- function(data, ..., by = c("maf", "none"), maf_breaks = c(0.001, 0.01, 0.05),
                     colours = NULL, lambda = TRUE, ci = TRUE, threshold = 5e-8,
                     y_compress = "auto", base_size = 10, point_size = 1) {
-  by <- match.arg(by)
+  by <- by[1]   # "maf" by default
+  if (!is.character(by) || is.na(by)) {
+    stop("`by` must be \"maf\", \"none\" or a column name.", call. = FALSE)
+  }
   d <- .standardise(data, ..., ids = FALSE)
+  if (!by %in% c("maf", "none", names(d))) {
+    stop(sprintf(paste0("`by` must be \"maf\", \"none\" or a column of the standardised ",
+                        "data (%s). To use another column of `data`, keep it too: ",
+                        "`keep = \"%s\"`."), paste(names(d), collapse = ", "), by),
+         call. = FALSE)
+  }
   sig <- -log10(threshold)
   logp <- d$logp
   if (by == "maf" && !isTRUE(attr(d, "has_maf"))) {
@@ -75,23 +93,39 @@ qq_plot <- function(data, ..., by = c("maf", "none"), maf_breaks = c(0.001, 0.01
                            "they deflate genomic inflation."), 100 * at_one), call. = FALSE)
   }
 
-  # Strata: frequency classes, with variants of unknown frequency as their own
-  # class rather than dropped.
-  if (by == "maf") {
-    cls <- .maf_classes(d$maf, maf_breaks)
-    pal <- colours %||% maf_colours(nlevels(cls))
-    if (length(pal) < nlevels(cls)) {
-      stop("`colours` needs ", nlevels(cls), " colours.", call. = FALSE)
+  # Strata: frequency classes or the values of a column, with variants of
+  # unknown frequency (or value) as their own class rather than dropped. Up to
+  # four strata are told apart by colour (the frequency-class palette, which
+  # stays distinguishable with colour blindness); more get a panel each.
+  facet <- FALSE
+  if (by == "none") {
+    cls <- factor(rep("all", length(logp)))
+    pal <- c(all = (colours %||% maf_colours(1))[1])
+  } else {
+    v <- if (by == "maf") NULL else d[[by]]
+    cls <- if (by == "maf") {
+      .maf_classes(d$maf, maf_breaks)
+    } else if (by == "chr") {
+      factor(v, intersect(.chr_levels, unique(v)))
+    } else if (is.factor(v)) {
+      droplevels(v)
+    } else {
+      factor(v)
     }
-    pal <- stats::setNames(pal[seq_len(nlevels(cls))], levels(cls))
+    n <- nlevels(cls)
+    if (n > 30) {
+      stop(sprintf("`by = \"%s\"` gives %d groups, too many to draw; bin a continuous column first.",
+                   by, n), call. = FALSE)
+    }
+    facet <- n > 4
+    pal <- if (facet) rep(maf_colours(1), n) else colours %||% maf_colours(n)
+    if (length(pal) < n) stop("`colours` needs ", n, " colours.", call. = FALSE)
+    pal <- stats::setNames(pal[seq_len(n)], levels(cls))
     if (anyNA(cls)) {
       cls <- factor(cls, levels = c(levels(cls), "Unknown"))
       cls[is.na(cls)] <- "Unknown"
-      pal <- c(pal, Unknown = .ink$unknown)
+      pal <- c(pal, Unknown = if (facet) maf_colours(1) else .ink$unknown)
     }
-  } else {
-    cls <- factor(rep("all", length(logp)))
-    pal <- c(all = (colours %||% maf_colours(1))[1])
   }
 
   # Expected -log10(P) of the k-th smallest of n uniform P-values, within each
@@ -137,13 +171,23 @@ qq_plot <- function(data, ..., by = c("maf", "none"), maf_breaks = c(0.001, 0.01
   pts <- point_size * base_size / 10
 
   fmt <- function(v) formatC(v, format = "f", digits = 3)
+  # Per-class lambda only where it is precise enough to read (SE ~ 2.3/sqrt(n)):
+  # in the legend, or in each panel's title.
+  show_lam <- lambda & n_k >= 1000
   leg_lab <- .maf_legend_labels(present)
-  if (lambda) {
-    # Per-class lambda only where it is precise enough to read (SE ~ 2.3/sqrt(n)).
+  if (any(show_lam)) {
     leg_lab <- as.expression(lapply(seq_along(present), function(i) {
       j <- match(present[i], levels(cls))
-      if (n_k[j] < 1000) leg_lab[[i]] else bquote(.(leg_lab[[i]]) ~~~ lambda == .(fmt(lam_k[j])))
+      if (!show_lam[j]) leg_lab[[i]] else bquote(.(leg_lab[[i]]) ~~~ lambda == .(fmt(lam_k[j])))
     }))
+  }
+  if (facet) {
+    strip <- vapply(present, function(l) {
+      j <- match(l, levels(cls))
+      paste0(.pm_string(l), if (show_lam[j]) paste0(" ~~~ lambda == '", fmt(lam_k[j]), "'"))
+    }, "")
+    pd$strip <- factor(strip[as.character(pd$cls)], levels = unname(strip))
+    bands$strip <- factor(strip[as.character(bands$cls)], levels = unname(strip))
   }
 
   p <- ggplot2::ggplot()
@@ -161,16 +205,20 @@ qq_plot <- function(data, ..., by = c("maf", "none"), maf_breaks = c(0.001, 0.01
     ggplot2::geom_point(data = pd, ggplot2::aes(x = .data$x, y = .data$y, colour = .data$cls),
                         size = 0.9 * pts, stroke = 0) +
     ggplot2::scale_colour_manual(
-      values = pal, limits = present, labels = leg_lab, name = "Minor allele frequency",
-      guide = if (by == "maf") {
+      values = pal, limits = present, labels = leg_lab,
+      name = if (by == "maf") "Minor allele frequency" else by,
+      guide = if (by != "none" && !facet) {
         ggplot2::guide_legend(nrow = if (length(present) > 2) 2 else 1, byrow = TRUE,
                               override.aes = list(size = 2.6 * pts))
       } else "none"
     )
-  if (lambda) {
+  if (facet) {
+    p <- p + ggplot2::facet_wrap(~strip, labeller = ggplot2::label_parsed)
+    if (lambda) p <- p + ggplot2::labs(subtitle = bquote(lambda[GC] == .(fmt(lam)) ~ "for all variants"))
+  } else if (lambda) {
     p <- p + ggplot2::annotate("text", x = 0, y = ymax, hjust = 0, vjust = 1, parse = TRUE,
                                label = sprintf("lambda[GC] == '%s'", fmt(lam)),
-                               size = base_size * 0.9 / ggplot2::.pt, colour = .ink$primary)
+                               size = base_size * .text_size$legend / ggplot2::.pt, colour = .ink$primary)
   }
   p +
     ggplot2::scale_x_continuous(limits = c(0, xmax * 1.02), expand = ggplot2::expansion(0)) +
@@ -182,11 +230,10 @@ qq_plot <- function(data, ..., by = c("maf", "none"), maf_breaks = c(0.001, 0.01
     ) +
     ggplot2::labs(x = expression(Expected ~ -log[10](italic(P))),
                   y = expression(Observed ~ -log[10](italic(P)))) +
-    theme_brownstone(base_size = base_size) +
+    theme_brownstone(base_size = base_size) + .legend_on_top(base_size) +
     ggplot2::theme(
-      legend.title.position = "left",
       panel.grid.major.x = ggplot2::element_line(colour = .ink$grid, linewidth = 0.3),
-      axis.text.y.right = ggplot2::element_text(colour = .ink$muted, size = base_size * 0.75,
+      axis.text.y.right = ggplot2::element_text(colour = .ink$muted, size = base_size * .text_size$note,
                                                 hjust = 0)
     )
 }

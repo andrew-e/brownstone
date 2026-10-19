@@ -95,3 +95,39 @@ test_that("simulate_gwas() can simulate a GWAS with no causal loci", {
   expect_equal(nrow(attr(null, "causal")), 0)
   expect_lt(min(null$P[-which.min(null$P)]), 1)
 })
+
+test_that("any column can define the strata", {
+  set.seed(3)
+  gw$INFO_BIN <- factor(sample(c("< 0.3", "0.3-0.8", ">= 0.8"), nrow(gw), TRUE),
+                        levels = c("< 0.3", "0.3-0.8", ">= 0.8"))
+  gw$INFO_BIN[1:100] <- NA
+  p <- qq_plot(gw, by = "INFO_BIN", keep = "INFO_BIN")
+  colour <- ggplot2::ggplot_build(p)$plot$scales$get_scales("colour")
+  expect_equal(colour$get_limits(), c("< 0.3", "0.3-0.8", ">= 0.8", "Unknown"))
+  expect_equal(colour$name, "INFO_BIN")
+  expect_equal(unname(colour$palette.cache[1:3]), maf_colours(3))
+  # Each group is compared with its own expectation.
+  pts <- point_data(p)
+  n_group <- as.numeric(table(gw$INFO_BIN, useNA = "always"))
+  expect_equal(sort(as.numeric(tapply(pts$x, pts$colour, max))),
+               sort(-log10(0.5 / n_group)))
+})
+
+test_that("more than four strata get a panel each, with their lambda", {
+  p <- qq_plot(gw, by = "chr")
+  expect_s3_class(p$facet, "FacetWrap")
+  strips <- levels(ggplot2::layer_data(p, 1)$PANEL)
+  expect_length(strips, 22)
+  strip <- as.character(ggplot2::ggplot_build(p)$layout$layout$strip)
+  # Panels follow the karyotype, not alphabetical order, each with its lambda.
+  expect_match(strip[1], "^'1' ~~~ lambda == '1\\.[0-9]{3}'$")
+  expect_match(strip[10], "^'10' ~~~ lambda")
+  # ...where a chromosome has the 1,000 variants needed for a precise one.
+  expect_equal(grepl("lambda", strip), as.vector(table(gw$CHR) >= 1000))
+  expect_match(paste(deparse(p$labels$subtitle), collapse = ""), "lambda[GC]", fixed = TRUE)
+})
+
+test_that("an unknown or continuous `by` column is refused", {
+  expect_error(qq_plot(gw, by = "INFO"), "keep = \"INFO\"")
+  expect_error(qq_plot(gw, by = "pos"), "bin a continuous column")
+})

@@ -16,6 +16,8 @@ standardise_sumstats(
   or = NULL,
   maf = NULL,
   eaf = NULL,
+  ea = NULL,
+  oa = NULL,
   effect_allele = c("minor", "as_is"),
   keep = NULL,
   quiet = TRUE
@@ -36,6 +38,11 @@ there is no beta column.}
 \item{maf}{Optional name of a minor allele frequency column.}
 
 \item{eaf}{Optional name of an effect (tested) allele frequency column.}
+
+\item{ea, oa}{Optional names of the effect (tested) and other allele columns.
+When both are given, the output gains \code{allele} and \code{other_allele} columns:
+the allele each effect is per (after any flip to the minor allele) and the
+other allele. \code{forest_plot(compare = )} uses them to align two GWAS.}
 
 \item{effect_allele}{How to orient effects. \code{"minor"} (the default) flips the
 sign of beta wherever the effect allele is the major allele, so every effect

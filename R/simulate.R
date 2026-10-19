@@ -69,7 +69,11 @@ sim_loci <- data.frame(
 #' @return A data frame with the columns of a typical summary statistics file:
 #'   `CHR`, `BP`, `SNP`, `A1` (effect allele), `A2`, `EAF` (effect allele
 #'   frequency), `BETA`, `SE` and `P`. The causal variants are attached as the
-#'   attribute `"causal"`.
+#'   attribute `"causal"`, and the LD each simulated signal was built with as
+#'   the attribute `"ld"`: r² between the signal's variant (`SNP_A`) and its
+#'   neighbours (`SNP_B`) where r² > 0.01, in the columns of PLINK `--r2`
+#'   output, ready for `region_plot(ld = )`. Where two signals overlap, the r²
+#'   of each is only approximately the LD in the simulated data.
 #' @export
 #' @examples
 #' gwas <- simulate_gwas(n_variants = 1e5)
@@ -121,7 +125,11 @@ simulate_gwas <- function(n_variants = 1e6, n = 150000,
     r <- r * r_max * ifelse(stats::runif(length(win)) < 0.15, -1, 1)
     z[win] <<- z[win] * sqrt(1 - r^2) + r * zc
     z[c_idx] <<- zc + stats::rnorm(1, 0, 0.3)
+    # The LD this signal was built with, as LDproxy would report it (r2 > 0.01).
+    keep <- r^2 > 0.01
+    ld_rows[[length(ld_rows) + 1L]] <<- list(a = c_idx, b = win[keep], r2 = r[keep]^2)
   }
+  ld_rows <- list()
 
   # Causal loci, placed inside their genes.
   genes <- .gene_table(build)
@@ -176,5 +184,11 @@ simulate_gwas <- function(n_variants = 1e6, n = 150000,
     stringsAsFactors = FALSE
   )
   attr(out, "causal") <- causal
+  a <- as.integer(unlist(lapply(ld_rows, function(s) rep(s$a, length(s$b)))))
+  b <- as.integer(unlist(lapply(ld_rows, `[[`, "b")))
+  attr(out, "ld") <- data.frame(CHR_A = chr[a], BP_A = pos[a], SNP_A = out$SNP[a],
+                                CHR_B = chr[b], BP_B = pos[b], SNP_B = out$SNP[b],
+                                R2 = round(as.numeric(unlist(lapply(ld_rows, `[[`, "r2"))), 4),
+                                stringsAsFactors = FALSE)
   out
 }

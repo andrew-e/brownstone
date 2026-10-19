@@ -36,7 +36,11 @@ RNG state is restored afterwards.}
 A data frame with the columns of a typical summary statistics file:
 \code{CHR}, \code{BP}, \code{SNP}, \code{A1} (effect allele), \code{A2}, \code{EAF} (effect allele
 frequency), \code{BETA}, \code{SE} and \code{P}. The causal variants are attached as the
-attribute \code{"causal"}.
+attribute \code{"causal"}, and the LD each simulated signal was built with as
+the attribute \code{"ld"}: r² between the signal's variant (\code{SNP_A}) and its
+neighbours (\code{SNP_B}) where r² > 0.01, in the columns of PLINK \code{--r2}
+output, ready for \code{region_plot(ld = )}. Where two signals overlap, the r²
+of each is only approximately the LD in the simulated data.
 }
 \description{
 Simulates a genome-wide association study of a quantitative trait with

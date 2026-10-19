@@ -61,34 +61,63 @@ maf_colours <- function(n = 4, palette = c("contrast", "ordinal")) {
          stop("`maf_colours()` provides 1 to 4 colours.", call. = FALSE))
 }
 
+# Text sizes as fractions of `base_size`, used by every plot. Nothing is set
+# smaller than 0.8, so that a figure set at journal size (base_size = 8)
+# keeps every word at about 6.5 pt or more in print.
+.text_size <- list(
+  axis = 0.85,      # tick labels
+  label = 0.85,     # point labels (genes, loci, variants)
+  note = 0.8,       # P-values of the threshold lines, gene names, counts, notes
+  legend = 0.9,     # legend titles and keys
+  title = 1.4,
+  subtitle = 1.05,
+  caption = 0.85
+)
+
 #' A clean theme for genome-wide plots
 #'
 #' Minimal chrome: no panel border, no vertical grid, faint horizontal grid,
-#' secondary-ink text.
+#' secondary-ink text, and a large centred title. Text sizes follow
+#' `base_size` and are chosen to stay legible at journal size: for a
+#' double-column figure (183 mm wide), use `base_size = 8`.
 #'
 #' @param base_size Base font size, in points.
 #' @param base_family Base font family.
 #' @return A ggplot2 theme.
 #' @export
 theme_brownstone <- function(base_size = 10, base_family = "") {
+  sz <- function(k) base_size * .text_size[[k]]
   ggplot2::theme_minimal(base_size = base_size, base_family = base_family) +
     ggplot2::theme(
       panel.grid.major.x = ggplot2::element_blank(),
       panel.grid.minor = ggplot2::element_blank(),
       panel.grid.major.y = ggplot2::element_line(colour = .ink$grid, linewidth = 0.3),
-      axis.text = ggplot2::element_text(colour = .ink$secondary),
+      axis.text = ggplot2::element_text(colour = .ink$secondary, size = sz("axis")),
       axis.title = ggplot2::element_text(colour = .ink$secondary),
       axis.ticks = ggplot2::element_blank(),
+      strip.text = ggplot2::element_text(colour = .ink$primary, size = sz("axis")),
       legend.position = "top",
       legend.justification = "left",
-      legend.title = ggplot2::element_text(colour = .ink$secondary, size = base_size * 0.9),
-      legend.text = ggplot2::element_text(colour = .ink$secondary, size = base_size * 0.9),
+      legend.location = "plot",   # aligned with the figure, not the panel
+      # Compact legends: titles beside the keys (small, square plots put them
+      # on top, see .legend_on_top()), keys close to their labels.
+      legend.title = ggplot2::element_text(colour = .ink$secondary, size = sz("legend"),
+                                           margin = ggplot2::margin(r = base_size * 0.6)),
+      legend.text = ggplot2::element_text(colour = .ink$secondary, size = sz("legend"),
+                                          margin = ggplot2::margin(l = base_size * 0.2)),
+      legend.key.size = ggplot2::unit(base_size * 1.1, "pt"),
+      legend.key.spacing.x = ggplot2::unit(base_size * 0.7, "pt"),
+      legend.key.spacing.y = ggplot2::unit(base_size * 0.15, "pt"),
+      legend.spacing.x = ggplot2::unit(base_size * 1.8, "pt"),   # between legends
       legend.margin = ggplot2::margin(0, 0, 0, 0),
       legend.box.spacing = ggplot2::unit(base_size * 0.4, "pt"),
-      plot.title = ggplot2::element_text(colour = .ink$primary, size = base_size * 1.3,
-                                         margin = ggplot2::margin(b = base_size * 0.4)),
-      plot.subtitle = ggplot2::element_text(colour = .ink$secondary, size = base_size * 1.0),
-      plot.caption = ggplot2::element_text(colour = .ink$muted, size = base_size * 0.8),
+      plot.title = ggplot2::element_text(colour = .ink$primary, size = sz("title"), hjust = 0.5,
+                                         margin = ggplot2::margin(b = base_size * 0.5)),
+      plot.subtitle = ggplot2::element_text(colour = .ink$secondary, size = sz("subtitle"),
+                                            hjust = 0.5,
+                                            margin = ggplot2::margin(b = base_size * 0.5)),
+      plot.title.position = "plot",
+      plot.caption = ggplot2::element_text(colour = .ink$muted, size = sz("caption")),
       plot.background = ggplot2::element_rect(fill = "white", colour = NA),
       plot.margin = ggplot2::margin(6, 10, 4, 6)
     )
@@ -112,4 +141,11 @@ maf_ramp <- function(palette = c("viridis", "mako", "blue")) {
          viridis = c("#7AD151", "#35B779", "#1F988B", "#2A788E", "#39568C", "#472F7D", "#440154"),
          mako = c("#42B9AD", "#359CAA", "#347FA4", "#38639D", "#404589", "#3B2E5D", "#2A1B32"),
          blue = c("#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"))
+}
+
+# Legend titles above their keys, for the compact (often square) plots, where
+# a title beside the keys would push the legend off the edge at journal size.
+.legend_on_top <- function(base_size) {
+  ggplot2::theme(legend.title.position = "top",
+                 legend.title = ggplot2::element_text(margin = ggplot2::margin(b = base_size * 0.2)))
 }

@@ -140,7 +140,7 @@ brownstone(gwas, labels = loci) + patchwork::plot_annotation(subtitle = "Novel l
 | `track_direction` | `"up"` | `"down"` hangs the effect track from the Manhattan axis, like a reflection of the skyline. |
 | `track_height`, `label_angle`, `base_size`, `point_size` | | Layout. `label_angle = 90` packs more labels when there are many loci. |
 
-The result is a patchwork object: add a title with `+ patchwork::plot_annotation(title = ...)`, and save with `ggsave()`. At journal width (183 mm), use `base_size = 7, point_size = 0.8`.
+The result is a patchwork object: add a title with `+ patchwork::plot_annotation(title = ...)` (set large and centred), and save with `ggsave()`. For a journal, set the figure at its printed size and use `base_size = 8, point_size = 0.8` (double column, 183 mm, or single column, 89 mm), which keeps every word at about 6.5 pt or more; with 40 labels at that size, `max_labels = 20` reads better.
 
 ## QQ plot and genomic inflation
 
@@ -153,6 +153,27 @@ qq_plot(gwas)
 ![QQ plot of the simulated GWAS](man/figures/qq_sim.png)
 
 Rare-variant tests are often calibrated differently from common-variant ones, and a single curve hides that. In FinnGen's hypercholesterolaemia GWAS, for example, λ is 1.25 for common variants but 1.05 for variants rarer than 0.1%. The grey bands are pointwise 95% intervals, one per class. λ assumes 1-df tests, and under polygenicity it grows with sample size even without confounding (the LD score regression intercept tells the two apart). `qq_plot()` warns when the *P*-values look filtered (fewer than a quarter above 0.5), because a QQ plot needs every tested variant.
+
+## Comparing two GWAS
+
+`miami_plot()` puts two GWAS (two sexes, two ancestries, a discovery and a replication) on one genome axis. The first GWAS's Manhattan rises above the chromosome axis and the second's hangs below it. Beneath them, the |β| track does the same: the first GWAS's effects rise from a zero line and the second's hang from it. Both halves share the −log<sub>10</sub>(*P*) axis, the |β| axis and the frequency colours, so heights mean the same thing above and below the line.
+
+```r
+miami_plot(men, women)                         # halves named after the arguments
+miami_plot(men, women, names = c("Men", "Women"))
+```
+
+![Miami plot of two simulated GWAS](man/figures/miami_sim.png)
+
+`forest_plot(compare = )` shows the two GWAS's signed effects side by side, one row per region: the first GWAS above (circles), the second below (diamonds). Each region is represented by the lead variant of whichever GWAS is stronger there, looked up in the other. Hollow points don't reach the threshold in their own GWAS. When both files have effect and other allele columns, the second GWAS is aligned to the first's alleles. Variants whose alleles don't match lose the second estimate.
+
+```r
+forest_plot(men, compare = women, names = c("Men", "Women"))
+```
+
+![Forest plot comparing two simulated GWAS](man/figures/forest_compare_sim.png)
+
+Column names given to either function apply to both GWAS. If the two files name their columns differently, run each through `standardise_sumstats()` first.
 
 ## Before and after
 
@@ -171,6 +192,8 @@ The same simulated GWAS through `qqman::manhattan()`:
 ## Functions
 
 - `brownstone()`: the plot.
+- `miami_plot()`: two GWAS, one above and one below the chromosome axis, with their |β| tracks.
+- `forest_plot()`: lead-variant effects with 95% CIs; `compare =` sets two GWAS side by side.
 - `qq_plot()`: QQ plot by allele frequency class, with genomic inflation.
 - `find_loci()`: lead variants by distance clumping, with nearest genes.
 - `nearest_gene()`: nearest protein-coding gene to any positions.

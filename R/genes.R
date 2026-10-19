@@ -21,6 +21,58 @@
          stop("Unknown build '", build, "'.", call. = FALSE))
 }
 
+# Genes overlapping chr:start-end, from the bundled table for `build` or a
+# custom table (columns chr, start, end, gene and optionally strand).
+.genes_in_window <- function(chr, start, end, build, genes = NULL) {
+  g <- genes %||% .gene_table(build)
+  g <- g[.norm_chr(g$chr) == chr & g$end >= start & g$start <= end, , drop = FALSE]
+  data.frame(gene = as.character(g$gene), start = as.numeric(g$start), end = as.numeric(g$end),
+             strand = if (is.null(g$strand)) rep("+", nrow(g)) else as.character(g$strand),
+             stringsAsFactors = FALSE)
+}
+
+# Rows for a gene track: first fit, the gene at the lead variant first, then
+# by distance from it, so the genes nearest the signal always get a place.
+# Each gene takes the span of its body and of its name below it; the name's
+# width is estimated (in base pairs) for a panel `width_in` inches wide, as
+# text can't be measured before drawing. Genes beyond `max_rows` rows get
+# row NA. Returned in that order (nearest first), with each name's position
+# and alignment.
+.pack_genes <- function(g, start, end, lead_pos, base_size = 10, max_rows = 6, width_in = 7) {
+  if (!nrow(g)) {
+    g$hjust <- g$label_x <- numeric(0)
+    g$row <- integer(0)
+    return(g)
+  }
+  bp_per_in <- (end - start) / width_in
+  half <- nchar(g$gene) * 0.55 * (.text_size$note * base_size / 72) * bp_per_in * 1.2 / 2
+  mid <- (pmax(g$start, start) + pmin(g$end, end)) / 2
+  # A name that would cross an edge is aligned to it; the rest are centred on
+  # their gene.
+  g$hjust <- ifelse(mid < start + half, 0, ifelse(mid > end - half, 1, 0.5))
+  g$label_x <- ifelse(g$hjust == 0, start, ifelse(g$hjust == 1, end, mid))
+  lo <- pmin(g$start, g$label_x - 2 * half * g$hjust)
+  hi <- pmax(g$end, g$label_x + 2 * half * (1 - g$hjust))
+  pad <- 0.02 * (end - start)
+  dist <- pmax(g$start - lead_pos, lead_pos - g$end, 0)
+  g$row <- NA_integer_
+  rows <- list()   # the occupied spans of each row
+  ord <- order(dist, g$start)
+  for (k in ord) {
+    fits <- vapply(rows, function(r) all(lo[k] > r[, 2] + pad | hi[k] < r[, 1] - pad), logical(1))
+    r <- which(fits)[1]
+    if (is.na(r)) {
+      if (length(rows) >= max_rows) next
+      rows[[length(rows) + 1L]] <- matrix(c(lo[k], hi[k]), ncol = 2)
+      r <- length(rows)
+    } else {
+      rows[[r]] <- rbind(rows[[r]], c(lo[k], hi[k]))
+    }
+    g$row[k] <- r
+  }
+  g[ord, ]
+}
+
 #' Nearest gene to each position
 #'
 #' For each position, returns the gene whose body contains it, or failing that

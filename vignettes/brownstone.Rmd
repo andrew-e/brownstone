@@ -129,7 +129,104 @@ qq_plot(gwas)
 - **The grey bands** are pointwise 95% intervals, one per class: smaller classes have wider bands that end earlier.
 - **Filtered files** (fewer than a quarter of *P*-values above 0.5) get a warning and no λ, because a QQ plot needs every tested variant.
 
-`by = "none"` draws a single curve.
+`by = "none"` draws a single curve. `by` can also name another column: `"chr"`, say, or a binned imputation quality kept with `keep = "INFO_BIN"`. More than four groups get a panel each, with their λ in the panel title.
+
+## Volcano plot
+
+`volcano_plot()` plots each variant's effect against its −log~10~ *P*, with the hits coloured by minor allele frequency as in `brownstone()`.
+
+```{r volcano}
+volcano_plot(gwas)
+```
+
+- **Effects are signed**, oriented to the minor allele where an effect-allele frequency says which allele that is, so a point's side of zero means the same thing at every locus. Odds ratios go on the log scale, labelled as odds ratios.
+- **The grey cloud** is every variant below the line, thinned. Its wide wings are mostly rare variants, whose larger standard errors spread their estimates further from zero.
+- **The effect axis** breaks, as on the effect track, when a few estimates dwarf the lead effects; these are typically ultra-rare variants with large standard errors. `effect_scale = "linear"` keeps it linear.
+- **Labels** go on the lead variant of each locus, most significant first, as in `brownstone()`.
+
+## Effect size and allele frequency
+
+`effect_vs_maf()` puts each variant's |β| against its minor allele frequency, on a log scale. It is the usual picture of a GWAS with rare and common variants: rare variants with large effects, common variants with small ones.
+
+```{r effect-vs-maf}
+effect_vs_maf(gwas, suggestive = 1e-5)
+```
+
+- **Frequency is the x axis**, with the frequency classes as alternating bands (`maf_breaks`), so the hits are told apart by significance instead of colour: solid for genome-wide significant variants, hollow rings for suggestive peaks.
+- **The grey cloud** is the variants below the line. Its height at each frequency shows how noisy the estimates are there, because standard errors grow as variants get rarer.
+- **Labels** go on genome-wide significant loci only (at most `max_labels`, 10 by default).
+- `effects = "signed"` keeps the sign, oriented to the minor allele. Variants without an allele frequency, or with a frequency of 0, are left out.
+
+Winner's curse inflates the estimates of rare-variant hits the most, so the top left of this plot is where effects are least reliable.
+
+## Forest plot of lead loci
+
+`forest_plot()` draws the lead variant of each genome-wide significant locus (from `find_loci()`) with its 95% confidence interval, largest effect at the top.
+
+```{r forest, fig.width = 6, fig.height = 6.5, out.width = "80%"}
+forest_plot(gwas)
+```
+
+- **Rows** are labelled with the nearest gene and the variant ID (`annotate = NULL` for the ID alone). With more than `max_loci` (40) loci, the most significant are kept, still ordered by effect size. Allow about 0.15 inches of figure height per row.
+- **Effects are signed**, oriented to the minor allele, and the lead variants are coloured by frequency class.
+- **The effect axis** breaks for a few outlying effects, as elsewhere. Intervals that run beyond it are clipped at its edge.
+
+## Comparing two GWAS
+
+To compare two GWAS, for example men and women, a discovery and a replication, or two ancestries, use `miami_plot()`. The first GWAS's Manhattan rises above the chromosome axis and the second's hangs below it. Beneath them, the |β| track does the same. In this example the second GWAS covers the same variants, with every signal 25% weaker and its own noise:
+
+```{r miami, fig.height = 7}
+replication <- gwas
+set.seed(7)
+z <- 0.75 * gwas$BETA / gwas$SE + sqrt(1 - 0.75^2) * rnorm(nrow(gwas))
+replication$BETA <- z * gwas$SE
+replication$P <- 2 * pnorm(-abs(z))
+
+miami_plot(gwas, replication, names = c("Discovery", "Replication"))
+```
+
+- **One scale for both.** The halves share the −log~10~ *P* axis (and its break), the |β| axis and the frequency colours. A taller tower or a longer effect means the same thing above and below the line. When one GWAS is much stronger, the other looks flat, and that is the comparison.
+- **Magnitudes only.** The track shows |β| (or the odds ratio of the risk allele), so the two GWAS can be compared without aligning alleles. Both need effect and SE columns on the same scale, either both β or both odds ratios.
+- **Everything else is as in `brownstone()`**: suggestive rings, allelic series, gene labels (`max_labels` per half) and `maf_scale`.
+
+`forest_plot(compare = )` sets the two GWAS's signed effects side by side, one row per region:
+
+```{r forest-compare, fig.width = 6, fig.height = 8, out.width = "80%"}
+forest_plot(gwas, compare = replication, names = c("Discovery", "Replication"))
+```
+
+- **Which variants.** Loci of the two GWAS within `window` of each other are merged. Each region is represented by the lead variant of whichever GWAS is more significant there, and that same variant is looked up in the other GWAS.
+- **Hollow points** don't reach the threshold in their own GWAS. A variant missing from one GWAS has a single point.
+- **Alleles.** When both files have effect and other allele columns (detected, or named with `ea =` and `oa =`), the second GWAS's effects are aligned to the first's alleles. Variants whose alleles don't match, from a strand flip or a different variant, lose the second estimate. Without allele columns, effects are per each GWAS's minor allele. Variants with a minor allele frequency above 40% in either GWAS are listed, because their minor alleles may differ.
+
+Column names given to either function apply to both GWAS. If the two files name their columns differently, run each through `standardise_sumstats()` first.
+
+## Regional plots with LD
+
+`region_plot()` zooms in on one locus, in the style of LocusZoom. It plots −log~10~ *P* by position, coloured by linkage disequilibrium (LD) with the lead variant, above an effect track and a gene track. It keeps what a Brownstone plot adds: each variant's frequency class, and its effect size. `simulate_gwas()` stores the LD it simulated, so this example runs offline:
+
+```{r region, fig.height = 7}
+dense <- simulate_gwas()   # 1 million variants, for a well-filled region
+causal <- attr(dense, "causal")
+hmgcr <- causal[causal$gene == "HMGCR", ]
+region_plot(dense, snp = paste0(hmgcr$chr, ":", hmgcr$pos), ld = attr(dense, "ld"))
+```
+
+- **Colour is r² with the lead**, in five bins (`ld_breaks`), from light (no LD) to dark. Hollow points have no LD data. LDlink leaves out variants with r² ≤ 0.01, as well as those missing from 1000 Genomes. A missing variant whose allele frequency alone caps its r² with the lead below 0.2 goes in the lowest bin instead.
+- **Shape is the frequency class** of each variant above the suggestive line: circle (≥ 5%), square (1–5%), triangle (0.1–1%) or star (< 0.1%). Each departs further from the plain circle, so the rarer the variant, the more it stands out. A rare variant can't be in strong LD with a common lead, so a light triangle or star standing high is a signal of its own.
+- **The effect track** shows |β| of every variant above the suggestive line (`suggestive = 1e-5`). Most sit at or below the lead's |β| (dotted line), because LD only shrinks a proxy's effect. The lead, and the strongest variant of each other frequency class whose signal LD with the lead can't explain, are drawn with their 95% confidence interval.
+- **The gene track** shows protein-coding genes, with the gene at the lead in dark ink.
+
+With your own summary statistics, LD comes from LDlink. Register for a free token on the API Access tab of [LDlink](https://ldlink.nih.gov) and add `LDLINK_TOKEN=<token>` to your `.Renviron`:
+
+```{r region-ldlink, eval = FALSE}
+sumstats <- standardise_sumstats(sumstats)   # once, for several plots of a large GWAS
+region_plot(sumstats, gene = "PCSK9")                  # LD from LDlink, EUR
+region_plot(sumstats, snp = "rs11591147", pop = "FIN")
+ld <- ld_proxy("rs11591147", pop = "FIN")              # or fetch the LD yourself
+```
+
+LDlink's answers are cached for the session. If LDlink is busy it is asked again, with backoff. Without a token `region_plot()` stops and asks for one; to plot without LD, set `use_ld_info = FALSE`. Then, or if LDlink can't be reached, the plot is drawn without LD, coloured by frequency class like a Brownstone plot. `ld` also takes a table of your own, including PLINK `--r2` output.
 
 ## Large GWAS
 

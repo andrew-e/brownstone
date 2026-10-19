@@ -28,18 +28,22 @@ example \verb{chr = "CHROM", pos = "GENPOS", eaf = "A1FREQ"}, or
 
 \item{by}{\code{"maf"} (the default) draws one curve per minor allele frequency
 class (see \code{maf_breaks}); \code{"none"} draws one curve for all variants. Without
-an allele frequency column there is one curve.}
+an allele frequency column there is one curve. Any other value names a
+column of the standardised data (see \code{\link[=standardise_sumstats]{standardise_sumstats()}}): \code{"chr"},
+or a column of \code{data} kept with \code{keep = "<column>"}. There is one curve (or
+panel) per value, and variants with no value form an "Unknown" group. A
+continuous column should be binned first: at most 30 groups are drawn.}
 
 \item{maf_breaks}{Boundaries of the minor allele frequency classes. The
 default, \code{c(0.001, 0.01, 0.05)}, gives ultra-rare (< 0.1\%), rare
 (0.1-1\%), low-frequency (1-5\%) and common (>= 5\%) classes.}
 
-\item{colours}{One colour per frequency class, most common first (default
-\code{\link[=maf_colours]{maf_colours()}}); for \code{by = "none"}, the colour of the one curve.}
+\item{colours}{One colour per frequency class (or group), most common first
+(default \code{\link[=maf_colours]{maf_colours()}}); for \code{by = "none"}, the colour of the one curve.}
 
 \item{lambda}{Print \eqn{\lambda_{GC}} on the plot: for all variants in the
-corner of the panel and, for classes of at least 1,000 variants, in the
-legend.}
+corner of the panel (or the subtitle, with a panel per group) and, for
+classes of at least 1,000 variants, in the legend (or panel titles).}
 
 \item{ci}{Draw the pointwise 95\% bands.}
 
@@ -85,6 +89,11 @@ unbalanced binary trait tested without SPA suggests miscalibration.
 P-values under the null (from the Beta distribution of uniform order
 statistics), one per class: smaller classes have wider bands that end
 earlier.
+\item \strong{Other strata.} \code{by} can also name a column, for example \code{"chr"}, or a
+binned imputation quality score kept with \verb{keep =}. Up to four groups are
+drawn as coloured curves on one plot; more get a panel each, with their
+\eqn{\lambda} in the panel title, because more than four colours cannot
+all stay distinguishable with colour blindness.
 }
 
 Below the significance line, points that would be drawn on top of each

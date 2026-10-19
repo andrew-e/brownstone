@@ -16,5 +16,7 @@ A ggplot2 theme.
 }
 \description{
 Minimal chrome: no panel border, no vertical grid, faint horizontal grid,
-secondary-ink text.
+secondary-ink text, and a large centred title. Text sizes follow
+\code{base_size} and are chosen to stay legible at journal size: for a
+double-column figure (183 mm wide), use \code{base_size = 8}.
 }

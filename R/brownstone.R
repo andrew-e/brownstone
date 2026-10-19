@@ -167,28 +167,87 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
   # .thin()). Every hit is kept, so all that follows works on far fewer rows.
   d <- d[.thin(d$x, d$logp, below = floor_logp), ]
   has_maf <- isTRUE(attr(d, "has_maf"))
-  d$class <- if (has_maf) .maf_classes(d$maf, maf_breaks) else factor(rep("all", nrow(d)))
-  n_cls <- nlevels(d$class)
+  cset <- .colour_setup(d, has_maf, maf_scale, maf_breaks, colours, floor_logp)
+  cs <- cset$cs
+  d[c("class", "col", "stack")] <- cset[c("class", "col", "stack")]
+
+  loc <- .locus_setup(d, floor_logp, sig, window, labels, label_col, label_suggestive,
+                      build, max_labels)
+  d <- loc$d
+  cl <- loc$cl
+  lab <- loc$lab
+  comp <- .y_compressor(max_logp, sig, y_compress)
+
+  on_track <- loc$strong_locus | (track_suggestive & !is.null(sugg))
+  has_effects <- effects != "none" && isTRUE(attr(d, "has_effect")) && any(on_track)
+  if (effects != "none" && !isTRUE(attr(d, "has_effect"))) {
+    message("No effect size and standard error columns found; drawing without the effect track.")
+  }
+
+  # Over a rising track, the floor stands a little above the ground line
+  # (.ground_rule()), so that the line reads as its own; a hanging track hangs
+  # straight from it.
+  main <- .main_panel(d, max_logp, layout, comp, sig, sugg, lab, cs, has_maf,
+                      label_angle, base_size, point_size,
+                      x_axis = !has_effects,
+                      floor_gap = if (has_effects && track_direction == "up") 0.03 else 0)
+  if (!has_effects) return(main)
+
+  tr <- .track_setup(d, cl, sig, floor_logp, window, allelic_series && has_maf,
+                     track_suggestive, track_variants)
+  eff <- tr$eff
+  cloud <- tr$cloud
+  track <- .effect_panel(eff, cloud, layout, cs, mode = effects, scale = effect_scale,
+                         log_or = identical(attr(d, "effect_scale"), "log_or"),
+                         allele = attr(d, "effect_allele"),
+                         down = track_direction == "down",
+                         base_size = base_size, point_size = point_size)
+  # A bold ground line under the towers, and a little air before a track that
+  # rises from its own baseline (a hanging track hangs from that line).
+  main <- main + .ground_rule() + ggplot2::theme(plot.margin = ggplot2::margin(6, 10, 0, 6))
+  gap <- if (track_direction == "down") 2 else 8
+  track <- track + ggplot2::theme(plot.margin = ggplot2::margin(gap, 10, 4, 6))
+  # Titles added with plot_annotation() take the theme's (large, centred) style.
+  patchwork::wrap_plots(main, track, ncol = 1,
+                        heights = c(1 - track_height, track_height)) +
+    patchwork::plot_annotation(theme = theme_brownstone(base_size = base_size))
+}
+
+`%||%` <- function(a, b) if (is.null(a)) b else a
+
+# Frequency classes, palette and colour scales for the (thinned) variants in
+# `d`: the class of each row, the value its colour is mapped from (`col`), its
+# drawing order (`stack`) and the scales (`cs`, see .colour_spec()).
+# miami_plot() calls this once on both GWAS together, so that the two halves
+# share one palette.
+.colour_setup <- function(d, has_maf, maf_scale, maf_breaks, colours, floor_logp) {
+  cls <- if (has_maf) .maf_classes(d$maf, maf_breaks) else factor(rep("all", nrow(d)))
+  n_cls <- nlevels(cls)
   binned_cols <- if (maf_scale == "binned") colours
   pal <- if (has_maf) binned_cols %||% maf_colours(n_cls) else (binned_cols %||% maf_colours(1))[1]
   if (length(pal) < n_cls) {
     stop("`colours` needs ", n_cls, " colours.", call. = FALSE)
   }
-  pal <- stats::setNames(pal[seq_len(n_cls)], levels(d$class))
+  pal <- stats::setNames(pal[seq_len(n_cls)], levels(cls))
   # Significant variants with no frequency get their own neutral class rather
   # than silently looking like noise.
-  if (has_maf && anyNA(d$class[d$logp >= floor_logp])) {
-    d$class <- factor(d$class, levels = c(levels(d$class), "Unknown"))
-    d$class[is.na(d$class)] <- "Unknown"
+  if (has_maf && anyNA(cls[d$logp >= floor_logp])) {
+    cls <- factor(cls, levels = c(levels(cls), "Unknown"))
+    cls[is.na(cls)] <- "Unknown"
     pal <- c(pal, Unknown = .ink$unknown)
   }
+  d$class <- cls
   cs <- .colour_spec(d, has_maf, maf_scale, pal,
                      if (maf_scale == "continuous") colours, floor_logp)
-  d$col <- cs$values
-  d$stack <- cs$stack
+  list(class = cls, col = cs$values, stack = cs$stack, cs = cs)
+}
 
-  # Loci are found down to the suggestive line; genome-wide significant leads
-  # come first because clumping works in order of significance.
+# Loci (found down to the lowest line) and their labels. Adds
+# `in_strong_locus` to `d`.
+.locus_setup <- function(d, floor_logp, sig, window, labels, label_col, label_suggestive,
+                         build, max_labels) {
+  # Genome-wide significant leads come first because clumping works in order
+  # of significance.
   cl <- .clump(d, floor_logp, window)
   # Variants between the two lines that belong to a genome-wide significant
   # locus are just the base of its tower, not a suggestive peak.
@@ -197,36 +256,19 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
   d$in_strong_locus[cl$member[strong_locus[cl$locus_of]]] <- TRUE
   label_leads <- if (label_suggestive) cl$lead else cl$lead[strong_locus]
   lab <- .locus_labels(labels, label_col, d, label_leads, sig, build, max_labels)
-  comp <- .y_compressor(max_logp, sig, y_compress)
+  list(d = d, cl = cl, strong_locus = strong_locus, lab = lab)
+}
 
-  on_track <- strong_locus | (track_suggestive & !is.null(sugg))
-  has_effects <- effects != "none" && isTRUE(attr(d, "has_effect")) && any(on_track)
-  if (effects != "none" && !isTRUE(attr(d, "has_effect"))) {
-    message("No effect size and standard error columns found; drawing without the effect track.")
-  }
-
-  main <- .main_panel(d, max_logp, layout, comp, sig, sugg, lab, cs, has_maf,
-                      label_angle, base_size, point_size,
-                      x_axis = !has_effects)
-  if (!has_effects) return(main)
-
-  eff <- .track_variants(d, cl, sig, window, allelic_series && has_maf,
-                         suggestive = track_suggestive)
+# Lead variants (`eff`) and, for `track_variants = "all"`, every other hit
+# (`cloud`) for the effect track.
+.track_setup <- function(d, cl, sig, floor_logp, window, allelic_series, track_suggestive,
+                         track_variants) {
+  eff <- .track_variants(d, cl, sig, window, allelic_series, suggestive = track_suggestive)
   cloud <- if (track_variants == "all") {
     .track_cloud(d, eff$row, if (track_suggestive) floor_logp else sig, sig)
   }
-  track <- .effect_panel(eff, cloud, layout, cs, mode = effects, scale = effect_scale,
-                         log_or = identical(attr(d, "effect_scale"), "log_or"),
-                         allele = attr(d, "effect_allele"),
-                         down = track_direction == "down",
-                         base_size = base_size, point_size = point_size)
-  main <- main + ggplot2::theme(plot.margin = ggplot2::margin(6, 10, 0, 6))
-  track <- track + ggplot2::theme(plot.margin = ggplot2::margin(2, 10, 4, 6))
-  patchwork::wrap_plots(main, track, ncol = 1,
-                        heights = c(1 - track_height, track_height))
+  list(eff = eff, cloud = cloud)
 }
-
-`%||%` <- function(a, b) if (is.null(a)) b else a
 
 # Minor allele frequency classes, as a factor ordered from common to rare.
 # Levels are ASCII ("< 1%", "1-5%", ">= 5%"); .maf_legend_labels() turns them
@@ -427,24 +469,16 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
 
 # A table of labels, matched to the data by variant ID or by position. Any
 # variant can be labelled, so this runs on every row, before thinning.
-.label_table <- function(labels, d) {
+.label_table <- function(labels, d, warn = TRUE) {
   if (!"label" %in% names(labels)) {
     stop("A label data frame needs a `label` column.", call. = FALSE)
   }
-  if ("snp" %in% names(labels)) {
-    i <- match(as.character(labels$snp), .variant_id(d))
-  } else if (all(c("chr", "pos") %in% names(labels))) {
-    # Positions are matched as numbers, and only among rows at a labelled
-    # position: pasting millions of positions into text is slow, and an
-    # integer 55000000 would not match the double, written "5.5e+07".
-    pos <- as.numeric(labels$pos)
-    cand <- which(d$pos %in% pos)
-    i <- cand[match(paste(.norm_chr(labels$chr), pos), paste(d$chr[cand], d$pos[cand]))]
-  } else {
+  if (!"snp" %in% names(labels) && !all(c("chr", "pos") %in% names(labels))) {
     stop("A label data frame needs a `snp` column, or `chr` and `pos` columns.",
          call. = FALSE)
   }
-  if (anyNA(i)) {
+  i <- .match_variants(labels, d)
+  if (warn && anyNA(i)) {
     warning(sum(is.na(i)), " labelled variant(s) not found in the data.", call. = FALSE)
   }
   ff <- if ("fontface" %in% names(labels)) as.character(labels$fontface) else "plain"
@@ -453,13 +487,18 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
   out[!is.na(i), ]
 }
 
-.x_scale <- function(layout, labels = TRUE) {
+# `top_title` adds a title above the panel, below any legend (miami_plot()
+# names its upper half this way).
+.x_scale <- function(layout, labels = TRUE, top_title = NULL) {
   ggplot2::scale_x_continuous(
     breaks = layout$mid,
     labels = if (labels) layout$chr else NULL,
     limits = c(min(layout$start), max(layout$end)),
     expand = ggplot2::expansion(0),
-    guide = ggplot2::guide_axis(check.overlap = TRUE)
+    guide = ggplot2::guide_axis(check.overlap = TRUE),
+    sec.axis = if (is.null(top_title)) ggplot2::waiver() else {
+      ggplot2::dup_axis(name = top_title, breaks = NULL, labels = NULL)
+    }
   )
 }
 
@@ -490,11 +529,16 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
 }
 
 # `d` is already thinned (see brownstone()); `max_logp` is the top before thinning.
+# With `down = TRUE` the panel hangs from its top edge (the lower half of a
+# Miami plot): -log10(P) is drawn negated and labelled as positive, which
+# keeps ggrepel's nudges and limits simple.
 .main_panel <- function(d, max_logp, layout, comp, sig, sugg, lab, cs, has_maf,
-                        label_angle, base_size, point_size, x_axis) {
+                        label_angle, base_size, point_size, x_axis, floor_gap = 0,
+                        down = FALSE, legend = TRUE, top_title = NULL) {
+  s <- if (down) -1 else 1
   floor_logp <- sugg %||% sig
   pd <- d[, c("x", "logp", "class", "col", "stack", "in_strong_locus")]
-  pd$y <- comp$f(pd$logp)
+  pd$y <- s * comp$f(pd$logp)
   tower_base <- pd$logp >= floor_logp & pd$logp < sig & pd$in_strong_locus
   noise <- pd[pd$logp < floor_logp | tower_base, ]
   hits <- pd[pd$logp >= floor_logp & !tower_base, ]
@@ -510,38 +554,41 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
   pts <- point_size * base_size / 10
 
   p <- ggplot2::ggplot() + .band_layer(layout)
-  if (!is.null(comp$at)) p <- p + .axis_break(comp$at, ymax)
+  if (!is.null(comp$at)) p <- p + .axis_break(s * comp$at, ymax)
   p <- p +
     ggplot2::geom_point(data = noise, ggplot2::aes(x = .data$x, y = .data$y),
                         colour = .ink$noise, size = 0.45 * pts, stroke = 0)
   if (!is.null(sugg)) {
-    p <- p + ggplot2::geom_hline(yintercept = sugg, colour = .ink$muted,
+    p <- p + ggplot2::geom_hline(yintercept = s * sugg, colour = .ink$muted,
                                  linewidth = 0.25, linetype = "13")
   }
   # Suggestive hits are hollow rings in their frequency colour; genome-wide
   # significant hits are solid. Both map `shape` to the tier only to get a
   # legend entry for it.
   p <- p +
-    ggplot2::geom_hline(yintercept = sig, colour = .ink$secondary, linewidth = 0.3,
+    ggplot2::geom_hline(yintercept = s * sig, colour = .ink$secondary, linewidth = 0.3,
                         linetype = "22")
   # With no hits at all there is nothing to colour (and empty manual scales
-  # only produce warnings).
+  # only produce warnings). Legend keys are drawn for every class, even one
+  # with no hits in this panel (the other half of a Miami plot may have them).
   if (nrow(hits)) p <- p +
     ggplot2::geom_point(data = weak, ggplot2::aes(x = .data$x, y = .data$y,
                                                   colour = .data$col, shape = .data$tier),
-                        fill = "white", stroke = 0.6 * pts, size = 1.45 * pts) +
+                        fill = "white", stroke = 0.6 * pts, size = 1.45 * pts,
+                        show.legend = TRUE) +
     ggplot2::geom_point(data = strong, ggplot2::aes(x = .data$x, y = .data$y,
                                                     fill = .data$col, shape = .data$tier),
-                        colour = "white", stroke = 0.25 * pts, size = 1.7 * pts) +
+                        colour = "white", stroke = 0.25 * pts, size = 1.7 * pts,
+                        show.legend = TRUE) +
     # The frequency legend comes from the solid points, or from the rings when
     # nothing is genome-wide significant.
-    (if (nrow(strong)) cs$fill(legend = has_maf)) +
-    cs$colour(legend = has_maf && !nrow(strong)) +
+    (if (nrow(strong)) cs$fill(legend = legend && has_maf)) +
+    cs$colour(legend = legend && has_maf && !nrow(strong)) +
     ggplot2::scale_shape_manual(
       values = c(gws = 21, suggestive = 21), limits = c("gws", "suggestive"),
       labels = parse(text = paste("italic(P) <", vapply(10^-c(sig, sugg %||% sig), .p_plotmath, ""))),
       name = NULL,
-      guide = if (!is.null(sugg)) {
+      guide = if (legend && !is.null(sugg)) {
         ggplot2::guide_legend(order = 2, override.aes = list(
           fill = c(.ink$secondary, "white"), colour = c("white", .ink$secondary),
           stroke = c(0.25, 0.6), size = c(3, 2.6)))
@@ -549,7 +596,7 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
     )
 
   if (nrow(lab)) {
-    lab$y <- comp$f(lab$logp)
+    lab$y <- s * comp$f(lab$logp)
     # Labels repel from every significant point, not just the labelled ones;
     # a coarse grid of hits is enough for that and keeps ggrepel fast.
     near <- hits[.thin(hits$x, hits$y, below = Inf, nx = 600, ny_per_unit = 1), ]
@@ -559,18 +606,20 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
     common <- list(
       data = rep, mapping = ggplot2::aes(x = .data$x, y = .data$y, label = .data$label,
                                          fontface = .data$fontface),
-      colour = rep$colour, size = base_size * 0.8 / ggplot2::.pt,
+      colour = rep$colour, size = base_size * .text_size$label / ggplot2::.pt,
       min.segment.length = 0, segment.colour = .ink$muted, segment.size = 0.25,
       max.overlaps = Inf, seed = 42
     )
+    above <- sig + 0.03 * ymax
     p <- p + if (label_angle == 0) {
       do.call(ggrepel::geom_text_repel, c(common, list(
-        direction = "both", nudge_y = 0.04 * ymax, ylim = c(sig + 0.03 * ymax, NA),
+        direction = "both", nudge_y = s * 0.04 * ymax,
+        ylim = if (down) c(NA, -above) else c(above, NA),
         box.padding = 0.4, point.padding = 0.15, force = 3)))
     } else {
       do.call(ggrepel::geom_text_repel, c(common, list(
-        angle = label_angle, hjust = 0, direction = "x", nudge_y = 0.03 * ymax,
-        box.padding = 0.1)))
+        angle = label_angle, hjust = if (down) 1 else 0, direction = "x",
+        nudge_y = s * 0.03 * ymax, box.padding = 0.1)))
     }
   }
 
@@ -579,17 +628,18 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
   lines_at <- c(sig, sugg)
   lines_lab <- parse(text = vapply(10^-lines_at, .p_plotmath, ""))
   p +
-    .x_scale(layout, labels = x_axis) +
+    .x_scale(layout, labels = x_axis, top_title = top_title) +
     ggplot2::scale_y_continuous(
-      breaks = yb$at, labels = yb$labels, limits = c(0, ymax),
-      expand = ggplot2::expansion(0),
-      sec.axis = ggplot2::dup_axis(name = NULL, breaks = lines_at, labels = lines_lab)
+      breaks = s * yb$at, labels = yb$labels,
+      limits = if (down) c(-ymax, 0) else c(0, ymax),
+      expand = ggplot2::expansion(mult = if (down) c(0, floor_gap) else c(floor_gap, 0)),
+      sec.axis = ggplot2::dup_axis(name = NULL, breaks = s * lines_at, labels = lines_lab)
     ) +
     ggplot2::labs(x = if (x_axis) "Chromosome" else NULL,
                   y = expression(-log[10](italic(P)))) +
     theme_brownstone(base_size = base_size) +
     ggplot2::theme(axis.text.y.right = ggplot2::element_text(colour = .ink$muted,
-                                                             size = base_size * 0.75,
+                                                             size = base_size * .text_size$note,
                                                              hjust = 0)) +
     if (!x_axis) ggplot2::theme(axis.text.x = ggplot2::element_blank())
 }
@@ -599,12 +649,19 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
 # sign of a single variant's effect depends only on which allele the GWAS
 # reported, so at a glance the size is what matters. "signed" keeps the sign
 # (oriented to the minor allele where an allele frequency is available).
+#
+# "mirror" (miami_plot()) draws two GWAS in one panel: |beta| of the rows with
+# `side` = 1 rises from the zero line, |beta| of those with `side` = -1 hangs
+# below it, on one shared axis.
 .effect_panel <- function(eff, cloud, layout, cs, mode, scale, log_or, allele,
                           down, base_size, point_size) {
-  if (mode == "magnitude") {
-    eff$y <- abs(eff$beta)
-    eff$lo <- pmax(eff$y - 1.96 * eff$se, 0)
-    eff$hi <- eff$y + 1.96 * eff$se
+  mirror <- mode == "mirror"
+  if (mode == "magnitude" || mirror) {
+    side <- if (mirror) eff$side else 1
+    m <- abs(eff$beta)
+    eff$y <- side * m
+    eff$lo <- side * pmax(m - 1.96 * eff$se, 0)
+    eff$hi <- side * (m + 1.96 * eff$se)
   } else {
     eff$y <- eff$beta
     eff$lo <- eff$beta - 1.96 * eff$se
@@ -612,10 +669,12 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
   }
   if (is.null(cloud)) {
     cloud <- data.frame(x = numeric(0), beta = numeric(0), col = eff$col[0],
-                        stack = numeric(0),
+                        stack = numeric(0), side = numeric(0),
                         tier = factor(character(0), levels = c("base", "suggestive", "gws")))
   }
-  cloud$y <- if (mode == "magnitude") abs(cloud$beta) else cloud$beta
+  cloud$y <- if (mirror) {
+    cloud$side * abs(cloud$beta)
+  } else if (mode == "magnitude") abs(cloud$beta) else cloud$beta
   # Room for every estimate, but don't let one very wide interval squash the
   # rest; intervals beyond the limits are clipped at the edge.
   top <- max(min(max(abs(c(eff$lo, eff$hi))), 1.6 * max(abs(eff$y))),
@@ -632,7 +691,7 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
   strong <- eff[eff$strong, ]
   weak <- eff[!eff$strong, ]
 
-  ylab <- if (mode == "magnitude") {
+  ylab <- if (mode != "signed") {
     if (log_or) "OR (risk allele)" else quote(group("|", beta, "|"))
   } else {
     allele_txt <- if (identical(allele, "minor")) "(minor allele)" else "(effect allele)"
@@ -682,13 +741,13 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
     ggplot2::scale_y_continuous(
       transform = .track_transform(ax$trans, down),
       limits = lim, oob = scales::oob_squish, breaks = breaks,
-      labels = function(b) .as_plotmath(.effect_labels(b, log_or)),
+      # Both halves of a Miami plot are magnitudes: label them as such.
+      labels = function(b) .as_plotmath(.effect_labels(if (mirror) abs(b) else b, log_or)),
       expand = ggplot2::expansion(mult = c(0.06, 0.06))
     ) +
     ggplot2::labs(x = "Chromosome", y = ylab) +
     theme_brownstone(base_size = base_size) +
-    ggplot2::theme(panel.grid.major.y = ggplot2::element_blank(),
-                   axis.title.y = ggplot2::element_text(size = base_size * 0.85))
+    ggplot2::theme(panel.grid.major.y = ggplot2::element_blank())
 }
 
 # The effect axis transform, optionally flipped so the track hangs down from

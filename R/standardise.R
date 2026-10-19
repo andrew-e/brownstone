@@ -30,7 +30,14 @@
           "all_meta_af", "frequency"),
   snp = c("rsid", "snp", "rs", "rs_id", "rsids", "markername", "snpid",
           "snp_id", "variant_id", "id", "markerid", "marker", "variant",
-          "marker_name")
+          "marker_name"),
+  # Alleles are read only where they are needed (forest_plot(compare = )).
+  # ALLELE2 is the other allele in METAL output but the effect allele in
+  # SAIGE's, so SAIGE output (recognised by its AF_Allele2 column) is left
+  # alone unless the columns are named.
+  ea = c("ea", "effect_allele", "a1", "allele1", "tested_allele", "alt", "alt_allele"),
+  oa = c("oa", "nea", "other_allele", "non_effect_allele", "a2", "allele0", "allele2",
+         "ax", "ref", "ref_allele")
 )
 
 .chr_levels <- c(as.character(1:22), "X", "Y", "XY", "MT")
@@ -76,6 +83,35 @@
   .chr_pos_id(d$chr[i], d$pos[i])
 }
 
+# The row of standardised data `d` for each row of a table naming variants by
+# `snp` and/or `chr` + `pos` (NA where none). Variant IDs are matched first;
+# rows still unmatched are matched by position, compared as numbers, and only
+# among rows at a listed position, so that millions of positions are never
+# pasted into text. With `unique_pos = TRUE`, a position held by more than one
+# variant (in `d` or in the table) is ambiguous without alleles and stays NA.
+.match_variants <- function(tab, d, unique_pos = FALSE) {
+  i <- rep(NA_integer_, nrow(tab))
+  if ("snp" %in% names(tab)) {
+    s <- as.character(tab$snp)
+    s[s %in% c(".", "")] <- NA
+    i <- match(s, .variant_id(d), incomparables = NA)
+  }
+  todo <- which(is.na(i))
+  if (length(todo) && all(c("chr", "pos") %in% names(tab))) {
+    pos <- as.numeric(tab$pos[todo])
+    key_t <- paste(.norm_chr(tab$chr[todo]), pos)
+    cand <- which(d$pos %in% pos)
+    key_d <- paste(d$chr[cand], d$pos[cand])
+    j <- cand[match(key_t, key_d)]
+    if (unique_pos) {
+      all_t <- paste(.norm_chr(tab$chr), as.numeric(tab$pos))
+      j[key_t %in% key_d[duplicated(key_d)] | key_t %in% all_t[duplicated(all_t)]] <- NA
+    }
+    i[todo] <- j
+  }
+  i
+}
+
 # -log10(P) from a z statistic, computed on the log scale so that it never
 # underflows (a z of 40 is P ~ 1e-350, below the smallest double).
 .logp_from_z <- function(z) {
@@ -116,6 +152,10 @@
 #'   reads "per copy of the minor allele" and has the same meaning across the
 #'   plot. This needs an effect allele frequency column; without one effects are
 #'   used as given. `"as_is"` never flips.
+#' @param ea,oa Optional names of the effect (tested) and other allele columns.
+#'   When both are given, the output gains `allele` and `other_allele` columns:
+#'   the allele each effect is per (after any flip to the minor allele) and the
+#'   other allele. `forest_plot(compare = )` uses them to align two GWAS.
 #' @param keep Names of any other columns to carry through unchanged (e.g. a
 #'   column of gene names to label hits with).
 #' @param quiet If `TRUE`, don't report which columns were used.
@@ -131,23 +171,25 @@
 standardise_sumstats <- function(data, chr = NULL, pos = NULL, p = NULL,
                                  beta = NULL, se = NULL, snp = NULL,
                                  log10p = NULL, or = NULL, maf = NULL,
-                                 eaf = NULL,
+                                 eaf = NULL, ea = NULL, oa = NULL,
                                  effect_allele = c("minor", "as_is"),
                                  keep = NULL, quiet = TRUE) {
   .standardise(data, chr = chr, pos = pos, p = p, beta = beta, se = se, snp = snp,
-               log10p = log10p, or = or, maf = maf, eaf = eaf,
+               log10p = log10p, or = or, maf = maf, eaf = eaf, ea = ea, oa = oa,
                effect_allele = effect_allele, keep = keep, quiet = quiet)
 }
 
 # The work of standardise_sumstats(). With `ids = FALSE`, variants are not
 # named "chr:pos" when the data have no ID column: building those names for
 # millions of rows is slow, and only labelled loci need them (.variant_id()).
+# With `alleles = TRUE`, allele columns are looked for (and, when both are
+# found, carried as `allele` and `other_allele`); otherwise only when named.
 .standardise <- function(data, chr = NULL, pos = NULL, p = NULL,
                          beta = NULL, se = NULL, snp = NULL,
                          log10p = NULL, or = NULL, maf = NULL,
-                         eaf = NULL,
+                         eaf = NULL, ea = NULL, oa = NULL,
                          effect_allele = c("minor", "as_is"),
-                         keep = NULL, quiet = TRUE, ids = TRUE) {
+                         keep = NULL, quiet = TRUE, ids = TRUE, alleles = FALSE) {
   if (inherits(data, "brownstone_sumstats") && all(keep %in% names(data))) return(data)
   if (!is.data.frame(data)) stop("`data` must be a data frame.", call. = FALSE)
   effect_allele <- match.arg(effect_allele)
@@ -168,6 +210,14 @@ standardise_sumstats <- function(data, chr = NULL, pos = NULL, p = NULL,
     eaf = .find_col(data, "eaf", eaf),
     snp = .find_col(data, "snp", snp)
   )
+  if (alleles || !is.null(ea) || !is.null(oa)) {
+    saige <- "af_allele2" %in% tolower(names(data))
+    find_allele <- function(field, user) {
+      if (is.null(user) && saige) NULL else .find_col(data, field, user)
+    }
+    col$ea <- find_allele("ea", ea)
+    col$oa <- find_allele("oa", oa)
+  }
   if (is.null(col$chr) || is.null(col$pos)) {
     stop("Could not find chromosome and position columns; name them with ",
          "`chr =` and `pos =`.", call. = FALSE)
@@ -210,9 +260,22 @@ standardise_sumstats <- function(data, chr = NULL, pos = NULL, p = NULL,
   eaf_v <- num(col$eaf)
   out$maf <- if (!is.null(col$maf)) num(col$maf) else eaf_v
   out$maf <- pmin(out$maf, 1 - out$maf)
-  if (effect_allele == "minor" && !is.null(col$eaf)) {
-    flip <- !is.na(eaf_v) & eaf_v > 0.5
-    out$beta[flip] <- -out$beta[flip]
+  flip <- if (effect_allele == "minor" && !is.null(col$eaf)) !is.na(eaf_v) & eaf_v > 0.5
+  if (!is.null(flip)) out$beta[flip] <- -out$beta[flip]
+  if (!is.null(col$ea) && !is.null(col$oa)) {
+    a1 <- toupper(as.character(data[[col$ea]]))
+    a2 <- toupper(as.character(data[[col$oa]]))
+    # A PLINK 2 A1 column can equal REF: then the other allele is unknown.
+    same <- !is.na(a1) & a1 == a2
+    a1[same] <- NA
+    a2[same] <- NA
+    if (!is.null(flip)) {
+      tmp <- a1[flip]
+      a1[flip] <- a2[flip]
+      a2[flip] <- tmp
+    }
+    out$allele <- a1
+    out$other_allele <- a2
   }
 
   # -log10(P). Prefer an explicit -log10 column; otherwise transform P. P-values
