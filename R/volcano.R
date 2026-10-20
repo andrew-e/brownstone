@@ -19,6 +19,12 @@
 #'   (`effect_scale`).
 #' * **Loci are labelled** with their nearest gene (or `labels`), one label per
 #'   locus, most significant first.
+#' * **Effects that disagree with their own allele frequencies are flagged.**
+#'   For binary traits whose summary statistics report the allele frequency
+#'   among cases and among controls, a lead variant whose reported effect
+#'   disagrees with the crude odds ratio those frequencies imply (by an order
+#'   of magnitude, or by six standard errors) is marked with a black ring; see
+#'   [find_artifacts()].
 #'
 #' @inheritParams brownstone
 #' @param labels How to label loci, as in [brownstone()]: `"nearest_gene"`,
@@ -41,8 +47,8 @@ volcano_plot <- function(data, ..., build = c("GRCh38", "GRCh37"), threshold = 5
   build <- match.arg(build)
   effect_scale <- match.arg(effect_scale)
   label_col <- if (is.character(labels) && length(labels) == 1L &&
-                   !labels %in% c("nearest_gene", "snp")) labels
-  d <- .standardise(data, ..., keep = label_col, ids = FALSE)
+                    !labels %in% c("nearest_gene", "snp")) labels
+  d <- .standardise(data, ..., keep = label_col, ids = FALSE, ccafs = TRUE)
   if (!isTRUE(attr(d, "has_effect"))) {
     stop("volcano_plot() needs effect size and standard error columns; ",
          "name them with `beta =` (or `or =`) and `se =`.", call. = FALSE)
@@ -78,6 +84,9 @@ volcano_plot <- function(data, ..., build = c("GRCh38", "GRCh37"), threshold = 5
   d$lead[cl$lead] <- TRUE
   d <- d[keep, ]
   leads <- which(d$lead)[order(-d$logp[d$lead])]   # most significant first
+  # Lead variants whose effects disagree with their own case/control allele
+  # frequencies (see find_artifacts()), marked with a ring among the hits.
+  d$flag <- seq_len(nrow(d)) %in% .artifact_flags(d, threshold, window, build)
 
   cp <- .class_palette(d, has_maf, maf_breaks, colours, floor_logp)
   d$class <- cp$class

@@ -21,11 +21,15 @@
 # Hits: genome-wide significant ones solid, suggestive peaks as hollow rings,
 # both in their colour (`hits$col`, scaled by `cs`). `shape` is mapped to the
 # tier only to get a legend entry for it, when there is a suggestive line.
+# Rows with `flag` TRUE (lead variants whose effects disagree with their own
+# case/control allele frequencies, see find_artifacts()) get a black ring.
 .hit_layers <- function(hits, cs, legend, sig, sugg, pts) {
   if (!nrow(hits)) return(NULL)
+  if (is.null(hits$flag)) hits$flag <- FALSE
   hits <- hits[order(hits$stack), ]   # rarest last, i.e. on top
   strong <- hits[hits$tier == "gws", ]
   weak <- hits[hits$tier == "suggestive", ]
+  flagged <- hits[hits$flag & hits$tier == "gws", ]
   list(
     ggplot2::geom_point(data = weak, ggplot2::aes(x = .data$x, y = .data$y,
                                                   colour = .data$col, shape = .data$tier),
@@ -33,6 +37,11 @@
     ggplot2::geom_point(data = strong, ggplot2::aes(x = .data$x, y = .data$y,
                                                     fill = .data$col, shape = .data$tier),
                         colour = "white", stroke = 0.25 * pts, size = 1.7 * pts),
+    if (nrow(flagged)) {
+      ggplot2::geom_point(data = flagged, ggplot2::aes(x = .data$x, y = .data$y),
+                          shape = 1, colour = .ink$primary, stroke = 0.5 * pts,
+                          size = 3.1 * pts)
+    },
     # The colour legend comes from the solid points, or from the rings when
     # nothing is genome-wide significant.
     if (nrow(strong)) cs$fill(legend = legend),

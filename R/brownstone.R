@@ -49,9 +49,13 @@
 #'   into loci; see [find_loci()].
 #' @param effects What the effect track shows (it needs effect and standard
 #'   error columns). `"magnitude"` (the default): |beta| with its 95% CI, i.e.
-#'   the effect per trait-increasing allele, or for odds ratios the OR of the
-#'   risk allele. The sign of a single variant's effect only reflects which
-#'   allele the GWAS reported, so at a glance the size is what matters.
+#'   the effect per copy of the trait-increasing allele, or for odds ratios
+#'   the OR of the risk allele. The sign of a single variant's effect only
+#'   reflects which allele the GWAS reported, so at a glance the size is what
+#'   matters. A lead variant whose effect disagrees with its own case/control
+#'   allele frequencies (by an order of magnitude, or by six standard errors;
+#'   binary traits whose summary statistics report them) is marked with a
+#'   black ring; see [find_artifacts()].
 #'   `"signed"`: beta with its sign, oriented to the minor allele when an allele
 #'   frequency is available (see `effect_allele` in [standardise_sumstats()]),
 #'   for lead variants only (`track_variants` is ignored: LD proxies are
@@ -149,8 +153,8 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
     track_variants <- "leads"
   }
   label_col <- if (is.character(labels) && length(labels) == 1L &&
-                   !labels %in% c("nearest_gene", "snp")) labels
-  d <- .standardise(data, ..., keep = label_col, ids = FALSE)
+                    !labels %in% c("nearest_gene", "snp")) labels
+  d <- .standardise(data, ..., keep = label_col, ids = FALSE, ccafs = TRUE)
   sig <- -log10(threshold)
   if (!is.null(suggestive) && suggestive <= threshold) {
     stop("`suggestive` must be a larger P-value than `threshold`.", call. = FALSE)
@@ -166,6 +170,9 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
   # Below the lowest line only one point per cell of a fine grid is drawn (see
   # .thin()). Every hit is kept, so all that follows works on far fewer rows.
   d <- d[.thin(d$x, d$logp, below = floor_logp), ]
+  # Lead variants whose effects disagree with their own case/control allele
+  # frequencies (see find_artifacts()), marked with a ring on the effect track.
+  flag_rows <- .artifact_flags(d, threshold, window, build)
   has_maf <- isTRUE(attr(d, "has_maf"))
   cset <- .colour_setup(d, has_maf, maf_scale, maf_breaks, colours, floor_logp)
   cs <- cset$cs
@@ -194,7 +201,7 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
   if (!has_effects) return(main)
 
   tr <- .track_setup(d, cl, sig, floor_logp, window, allelic_series && has_maf,
-                     track_suggestive, track_variants)
+                     track_suggestive, track_variants, flag = flag_rows)
   eff <- tr$eff
   cloud <- tr$cloud
   track <- .effect_panel(eff, cloud, layout, cs, mode = effects, scale = effect_scale,
@@ -260,10 +267,13 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
 }
 
 # Lead variants (`eff`) and, for `track_variants = "all"`, every other hit
-# (`cloud`) for the effect track.
+# (`cloud`) for the effect track. `flag`: the rows of `d` whose lead variants
+# disagree with their own case/control allele frequencies (see
+# find_artifacts()), marked with a ring on the track.
 .track_setup <- function(d, cl, sig, floor_logp, window, allelic_series, track_suggestive,
-                         track_variants) {
+                         track_variants, flag = integer(0)) {
   eff <- .track_variants(d, cl, sig, window, allelic_series, suggestive = track_suggestive)
+  eff$flag <- eff$row %in% flag
   cloud <- if (track_variants == "all") {
     .track_cloud(d, eff$row, if (track_suggestive) floor_logp else sig, sig)
   }
@@ -690,6 +700,7 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
   eff <- eff[order(eff$stack), ]
   strong <- eff[eff$strong, ]
   weak <- eff[!eff$strong, ]
+  flagged <- strong[!is.null(strong$flag) & strong$flag, ]
 
   ylab <- if (mode != "signed") {
     if (log_or) "OR (risk allele)" else quote(group("|", beta, "|"))
@@ -735,6 +746,11 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
                         shape = 21, fill = "white", stroke = 0.55 * pts, size = 1.8 * pts) +
     ggplot2::geom_point(data = strong, ggplot2::aes(x = .data$x, y = .data$y, fill = .data$col),
                         shape = 21, colour = "white", stroke = 0.3 * pts, size = 2.1 * pts) +
+    # A lead variant whose effect disagrees with its own case/control allele
+    # frequencies: a black ring around its point (see find_artifacts()).
+    (if (nrow(flagged)) ggplot2::geom_point(
+      data = flagged, ggplot2::aes(x = .data$x, y = .data$y),
+      shape = 1, colour = .ink$primary, stroke = 0.5 * pts, size = 3.7 * pts)) +
     (if (nrow(strong)) cs$fill(legend = FALSE)) +   # no fill data, no fill scale
     cs$colour() +
     .x_scale(layout) +

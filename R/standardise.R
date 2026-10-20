@@ -37,7 +37,11 @@
   # alone unless the columns are named.
   ea = c("ea", "effect_allele", "a1", "allele1", "tested_allele", "alt", "alt_allele"),
   oa = c("oa", "nea", "other_allele", "non_effect_allele", "a2", "allele0", "allele2",
-         "ax", "ref", "ref_allele")
+         "ax", "ref", "ref_allele"),
+  # Case and control allele frequencies are read only where the artefact
+  # check needs them (find_artifacts() and the plots' flag layers).
+  af_case = c("af_case", "af_cases", "af_alt_cases", "case_af", "freq_case"),
+  af_ctrl = c("af_ctrl", "af_control", "af_alt_controls", "ctrl_af", "freq_ctrl")
 )
 
 .chr_levels <- c(as.character(1:22), "X", "Y", "XY", "MT")
@@ -158,11 +162,18 @@
 #'   other allele. `forest_plot(compare = )` uses them to align two GWAS.
 #' @param keep Names of any other columns to carry through unchanged (e.g. a
 #'   column of gene names to label hits with).
+#' @param ccafs If `TRUE`, also look for case and control allele frequency
+#'   columns (FinnGen's `af_alt_cases`/`af_alt_controls`, SAIGE's
+#'   `AF_case`/`AF_ctrl`) and, when both are found, carry them as `af_case`
+#'   and `af_ctrl`, folded to the same orientation as beta. [find_artifacts()]
+#'   and the plots' artefact flags use them; standardising a large file once
+#'   with `ccafs = TRUE` avoids reading it again for each plot.
 #' @param quiet If `TRUE`, don't report which columns were used.
 #'
 #' @return A data frame with columns `chr` (character: 1-22, X, Y, XY, MT),
-#'   `pos`, `snp`, `logp` (-log10 P), `beta`, `se`, `maf` and any `keep`
-#'   columns, plus the attribute `"columns"` recording which input columns were
+#'   `pos`, `snp`, `logp` (-log10 P), `beta`, `se`, `maf`, any `keep`
+#'   columns, and (with `ccafs = TRUE`) `af_case` and `af_ctrl` when the input
+#'   has both, plus the attribute `"columns"` recording which input columns were
 #'   used. `beta`, `se` and `maf` are `NA` when the input has no such column.
 #' @export
 #' @examples
@@ -173,10 +184,10 @@ standardise_sumstats <- function(data, chr = NULL, pos = NULL, p = NULL,
                                  log10p = NULL, or = NULL, maf = NULL,
                                  eaf = NULL, ea = NULL, oa = NULL,
                                  effect_allele = c("minor", "as_is"),
-                                 keep = NULL, quiet = TRUE) {
+                                 keep = NULL, ccafs = FALSE, quiet = TRUE) {
   .standardise(data, chr = chr, pos = pos, p = p, beta = beta, se = se, snp = snp,
                log10p = log10p, or = or, maf = maf, eaf = eaf, ea = ea, oa = oa,
-               effect_allele = effect_allele, keep = keep, quiet = quiet)
+               effect_allele = effect_allele, keep = keep, ccafs = ccafs, quiet = quiet)
 }
 
 # The work of standardise_sumstats(). With `ids = FALSE`, variants are not
@@ -184,12 +195,16 @@ standardise_sumstats <- function(data, chr = NULL, pos = NULL, p = NULL,
 # millions of rows is slow, and only labelled loci need them (.variant_id()).
 # With `alleles = TRUE`, allele columns are looked for (and, when both are
 # found, carried as `allele` and `other_allele`); otherwise only when named.
+# With `ccafs = TRUE`, case and control allele frequency columns are looked
+# for too, and carried (folded to the same orientation as beta) when both are
+# found; the plots' artefact flags and find_artifacts() use them.
 .standardise <- function(data, chr = NULL, pos = NULL, p = NULL,
                          beta = NULL, se = NULL, snp = NULL,
                          log10p = NULL, or = NULL, maf = NULL,
                          eaf = NULL, ea = NULL, oa = NULL,
                          effect_allele = c("minor", "as_is"),
-                         keep = NULL, quiet = TRUE, ids = TRUE, alleles = FALSE) {
+                         keep = NULL, quiet = TRUE, ids = TRUE, alleles = FALSE,
+                         ccafs = FALSE) {
   if (inherits(data, "brownstone_sumstats") && all(keep %in% names(data))) return(data)
   if (!is.data.frame(data)) stop("`data` must be a data frame.", call. = FALSE)
   effect_allele <- match.arg(effect_allele)
@@ -217,6 +232,14 @@ standardise_sumstats <- function(data, chr = NULL, pos = NULL, p = NULL,
     }
     col$ea <- find_allele("ea", ea)
     col$oa <- find_allele("oa", oa)
+  }
+  if (ccafs) {
+    col$af_case <- .find_col(data, "af_case", NULL)
+    col$af_ctrl <- .find_col(data, "af_ctrl", NULL)
+    # Both or neither: one frequency alone cannot be checked against anything.
+    if (is.null(col$af_case) || is.null(col$af_ctrl)) {
+      col$af_case <- col$af_ctrl <- NULL
+    }
   }
   if (is.null(col$chr) || is.null(col$pos)) {
     stop("Could not find chromosome and position columns; name them with ",
@@ -262,6 +285,15 @@ standardise_sumstats <- function(data, chr = NULL, pos = NULL, p = NULL,
   out$maf <- pmin(out$maf, 1 - out$maf)
   flip <- if (effect_allele == "minor" && !is.null(col$eaf)) !is.na(eaf_v) & eaf_v > 0.5
   if (!is.null(flip)) out$beta[flip] <- -out$beta[flip]
+  if (!is.null(col$af_case)) {
+    # Frequencies of the effect (tested) allele among cases and among
+    # controls, folded to the same orientation as beta (the minor allele where
+    # the effect allele frequency says it is), so that the crude odds ratio
+    # computed from them is comparable with the reported estimate.
+    fold <- function(v) if (is.null(flip)) v else ifelse(flip, 1 - v, v)
+    out$af_case <- fold(num(col$af_case))
+    out$af_ctrl <- fold(num(col$af_ctrl))
+  }
   if (!is.null(col$ea) && !is.null(col$oa)) {
     a1 <- toupper(as.character(data[[col$ea]]))
     a2 <- toupper(as.character(data[[col$oa]]))
@@ -327,6 +359,7 @@ standardise_sumstats <- function(data, chr = NULL, pos = NULL, p = NULL,
   attr(out, "columns") <- used
   attr(out, "has_effect") <- any(is.finite(out$beta)) && any(is.finite(out$se))
   attr(out, "has_maf") <- any(is.finite(out$maf))
+  attr(out, "has_ccaf") <- !is.null(col$af_case)
   attr(out, "effect_scale") <- if (is.null(col$beta) && !is.null(col$or)) "log_or" else "beta"
   attr(out, "effect_allele") <- if (effect_allele == "minor" && !is.null(col$eaf)) "minor" else "as_is"
   class(out) <- c("brownstone_sumstats", class(out))

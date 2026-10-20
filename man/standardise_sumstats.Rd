@@ -20,6 +20,7 @@ standardise_sumstats(
   oa = NULL,
   effect_allele = c("minor", "as_is"),
   keep = NULL,
+  ccafs = FALSE,
   quiet = TRUE
 )
 }
@@ -53,12 +54,20 @@ used as given. \code{"as_is"} never flips.}
 \item{keep}{Names of any other columns to carry through unchanged (e.g. a
 column of gene names to label hits with).}
 
+\item{ccafs}{If \code{TRUE}, also look for case and control allele frequency
+columns (FinnGen's \code{af_alt_cases}/\code{af_alt_controls}, SAIGE's
+\code{AF_case}/\code{AF_ctrl}) and, when both are found, carry them as \code{af_case}
+and \code{af_ctrl}, folded to the same orientation as beta. \code{\link[=find_artifacts]{find_artifacts()}}
+and the plots' artefact flags use them; standardising a large file once
+with \code{ccafs = TRUE} avoids reading it again for each plot.}
+
 \item{quiet}{If \code{TRUE}, don't report which columns were used.}
 }
 \value{
 A data frame with columns \code{chr} (character: 1-22, X, Y, XY, MT),
-\code{pos}, \code{snp}, \code{logp} (-log10 P), \code{beta}, \code{se}, \code{maf} and any \code{keep}
-columns, plus the attribute \code{"columns"} recording which input columns were
+\code{pos}, \code{snp}, \code{logp} (-log10 P), \code{beta}, \code{se}, \code{maf}, any \code{keep}
+columns, and (with \code{ccafs = TRUE}) \code{af_case} and \code{af_ctrl} when the input
+has both, plus the attribute \code{"columns"} recording which input columns were
 used. \code{beta}, \code{se} and \code{maf} are \code{NA} when the input has no such column.
 }
 \description{

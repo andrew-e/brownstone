@@ -71,9 +71,13 @@ into loci; see \code{\link[=find_loci]{find_loci()}}.}
 
 \item{effects}{What the effect track shows (it needs effect and standard
 error columns). \code{"magnitude"} (the default): |beta| with its 95\% CI, i.e.
-the effect per trait-increasing allele, or for odds ratios the OR of the
-risk allele. The sign of a single variant's effect only reflects which
-allele the GWAS reported, so at a glance the size is what matters.
+the effect per copy of the trait-increasing allele, or for odds ratios
+the OR of the risk allele. The sign of a single variant's effect only
+reflects which allele the GWAS reported, so at a glance the size is what
+matters. A lead variant whose effect disagrees with its own case/control
+allele frequencies (by an order of magnitude, or by six standard errors;
+binary traits whose summary statistics report them) is marked with a
+black ring; see \code{\link[=find_artifacts]{find_artifacts()}}.
 \code{"signed"}: beta with its sign, oriented to the minor allele when an allele
 frequency is available (see \code{effect_allele} in \code{\link[=standardise_sumstats]{standardise_sumstats()}}),
 for lead variants only (\code{track_variants} is ignored: LD proxies are

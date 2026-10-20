@@ -17,7 +17,9 @@ effect_vs_maf(
   effect_scale = c("auto", "sqrt", "linear"),
   maf_breaks = c(0.001, 0.01, 0.05),
   base_size = 10,
-  point_size = 1
+  point_size = 1,
+  detection = TRUE,
+  power = 0.8
 )
 }
 \arguments{
@@ -61,6 +63,11 @@ alternating bands and axis ticks.}
 \item{base_size}{Base font size, in points.}
 
 \item{point_size}{Multiplier for point sizes.}
+
+\item{detection}{Draw the detection boundary (see above).}
+
+\item{power}{Power of the detection boundary: a number between 0 and 1, or
+several, one curve each.}
 }
 \value{
 A ggplot.
@@ -84,6 +91,22 @@ track of \code{\link[=brownstone]{brownstone()}}, the axis breaks for a few outl
 (\code{effect_scale}).
 \item \strong{Genome-wide significant loci are labelled} with their nearest gene (or
 \code{labels}), at their lead variant.
+\item \strong{Effects that disagree with their own allele frequencies are flagged.}
+For binary traits whose summary statistics report the allele frequency
+among cases and among controls, a lead variant whose reported effect
+disagrees with the crude odds ratio those frequencies imply (by an order
+of magnitude, or by six standard errors) is marked with a black ring; see
+\code{\link[=find_artifacts]{find_artifacts()}}.
+\item \strong{The detection boundary} is the smallest effect this study could have
+found at each frequency, drawn as a curve beneath the cloud: a true effect
+below it is invisible to this study, whatever the biology. The typical
+standard error grows as \verb{c / sqrt(2f(1 - f))} with frequency \emph{f}, for
+quantitative traits and log odds ratios alike, and its constant \emph{c} (the
+sample size, case/control balance and test calibration of the study as
+actually run, not an idealised one) is estimated from the variants
+themselves: the median of \verb{SE x sqrt(2f(1 - f))}. The boundary is then
+\emph{(z}(1-\emph{α}/2)* + z*(power)\emph{) x typical SE}, with \emph{α} the \code{threshold}.
+\code{detection = FALSE} removes it; \code{power} sets the level, or levels.
 }
 
 Variants without an allele frequency, or with a frequency of 0, are left out.

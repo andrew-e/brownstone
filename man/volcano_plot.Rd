@@ -94,6 +94,12 @@ of \code{\link[=brownstone]{brownstone()}}, it breaks and puts the outliers on a
 (\code{effect_scale}).
 \item \strong{Loci are labelled} with their nearest gene (or \code{labels}), one label per
 locus, most significant first.
+\item \strong{Effects that disagree with their own allele frequencies are flagged.}
+For binary traits whose summary statistics report the allele frequency
+among cases and among controls, a lead variant whose reported effect
+disagrees with the crude odds ratio those frequencies imply (by an order
+of magnitude, or by six standard errors) is marked with a black ring; see
+\code{\link[=find_artifacts]{find_artifacts()}}.
 }
 }
 \examples{
