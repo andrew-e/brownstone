@@ -77,11 +77,11 @@ frequency is available (see \code{effect_allele} in \code{\link[=standardise_sum
 Odds ratios are drawn on the log scale, so that intervals are symmetric,
 and labelled as odds ratios.
 \item \strong{Lead variants are coloured by minor allele frequency}, as in
-\code{\link[=brownstone]{brownstone()}}.
+\code{\link[=manhattan]{manhattan()}}.
 \item \strong{Rows are labelled} with the nearest gene and the variant ID, or the ID
 alone with \code{annotate = NULL}.
 \item \strong{The effect axis reacts to the data}: linear, unless a few effects dwarf
-the rest; then, as on the effect track of \code{\link[=brownstone]{brownstone()}}, it breaks and puts
+the rest; then, as on the effect track of \code{\link[=manhattan]{manhattan()}}, it breaks and puts
 the outliers on a log scale. Confidence intervals beyond the axis are
 clipped at its edge.
 }

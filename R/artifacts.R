@@ -130,9 +130,10 @@ find_artifacts <- function(data, threshold = 5e-8, window = 5e5,
   i <- which(out$flagged)[which.max(out$ratio[out$flagged])]
   gene <- nearest_gene(out$chr[i], out$pos[i], build = build)$gene
   gene <- if (is.na(gene)) .chr_pos_id(out$chr[i], out$pos[i]) else gene
-  message(sum(out$flagged), " lead variant", if (sum(out$flagged) > 1) "s",
-          " disagree", if (sum(out$flagged) == 1) "s",
-          " with their own case/control allele frequencies (worst: ",
+  one <- sum(out$flagged) == 1
+  message(sum(out$flagged), " lead variant", if (!one) "s",
+          " disagree", if (one) "s with its" else " with their",
+          " own case/control allele frequencies (worst: ",
           out$snp[i], " near ", gene, "); see find_artifacts() for the numbers.")
 }
 

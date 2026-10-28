@@ -2,23 +2,25 @@
 #'
 #' @description
 #' Plots each variant's effect size against its -log10(P), in the style of
-#' [brownstone()]: a grey cloud for the bulk of the genome, colour for the hits.
+#' [manhattan()]: a grey cloud for the bulk of the genome, colour for the hits.
 #'
 #' * **Effects are signed**, oriented to the minor allele where an allele
 #'   frequency is available (see `effect_allele` in [standardise_sumstats()]),
 #'   so that the sign means the same thing at every locus. Odds ratios are drawn
 #'   on the log scale and labelled as odds ratios.
-#' * **Hits are coloured by minor allele frequency**, as in [brownstone()]:
+#' * **Hits are coloured by minor allele frequency**, as in [manhattan()]:
 #'   variants past the significance line are solid, peaks that only reach the
 #'   `suggestive` line are hollow rings, and everything else is a grey cloud,
 #'   thinned where points would be drawn on top of each other.
 #' * **The effect axis reacts to the data.** Rare variants have large standard
 #'   errors, so even null ones can have large estimates. The axis is linear
 #'   unless a few estimates dwarf the lead effects; then, as on the effect track
-#'   of [brownstone()], it breaks and puts the outliers on a log scale
+#'   of [manhattan()], it breaks and puts the outliers on a log scale
 #'   (`effect_scale`).
 #' * **Loci are labelled** with their nearest gene (or `labels`), one label per
-#'   locus, most significant first.
+#'   locus: alternately the most significant remaining locus and the largest
+#'   remaining effect, so both the top and the outer edges of the plot are
+#'   named within `max_labels`.
 #' * **Effects that disagree with their own allele frequencies are flagged.**
 #'   For binary traits whose summary statistics report the allele frequency
 #'   among cases and among controls, a lead variant whose reported effect
@@ -26,13 +28,13 @@
 #'   of magnitude, or by six standard errors) is marked with a black ring; see
 #'   [find_artifacts()].
 #'
-#' @inheritParams brownstone
-#' @param labels How to label loci, as in [brownstone()]: `"nearest_gene"`,
+#' @inheritParams manhattan
+#' @param labels How to label loci, as in [manhattan()]: `"nearest_gene"`,
 #'   `"snp"`, a column name, a data frame of labels, or `NULL` for none.
-#' @param max_labels Label at most this many loci (the most significant).
+#' @param max_labels Label at most this many loci (see above for which).
 #' @param effect_scale How the effect axis reacts to the data: `"auto"` (the
 #'   default; linear, breaking for outlying estimates), `"sqrt"` or `"linear"`.
-#'   See [brownstone()].
+#'   See [manhattan()].
 #'
 #' @return A ggplot.
 #' @export
@@ -70,7 +72,7 @@ volcano_plot <- function(data, ..., build = c("GRCh38", "GRCh37"), threshold = 5
   # A table of labels can name any variant, so it is matched before thinning.
   if (is.data.frame(labels)) labels <- .label_table(labels, d)
 
-  # The effect axis is set by the lead effects, as on brownstone()'s track.
+  # The effect axis is set by the lead effects, as on manhattan()'s track.
   cl <- .clump(d, floor_logp, window)
   lead_abs <- abs(d$beta[cl$lead[d$logp[cl$lead] >= sig]])
   top <- max(abs(d$beta))
@@ -83,7 +85,8 @@ volcano_plot <- function(data, ..., build = c("GRCh38", "GRCh37"), threshold = 5
   d$lead <- FALSE
   d$lead[cl$lead] <- TRUE
   d <- d[keep, ]
-  leads <- which(d$lead)[order(-d$logp[d$lead])]   # most significant first
+  leads <- which(d$lead)
+  leads <- .label_order(leads, d$logp[leads], abs(d$beta[leads]))
   # Lead variants whose effects disagree with their own case/control allele
   # frequencies (see find_artifacts()), marked with a ring among the hits.
   d$flag <- seq_len(nrow(d)) %in% .artifact_flags(d, threshold, window, build)
@@ -124,14 +127,14 @@ volcano_plot <- function(data, ..., build = c("GRCh38", "GRCh37"), threshold = 5
                   ylim = c(sig + 0.03 * ymax, NA)) +
     ggplot2::scale_x_continuous(
       transform = ax$trans, limits = c(-top, top),
-      breaks = .track_breaks(ax, top, signed = TRUE, log_or = log_or),
+      breaks = .track_breaks(ax, top, signed = TRUE, log_or = log_or, roomy = TRUE),
       labels = function(b) .as_plotmath(.effect_labels(b, log_or)),
       expand = ggplot2::expansion(mult = 0.03)
     ) +
     .p_axis(comp, max_logp, ymax, sig, sugg) +
     ggplot2::labs(x = .effect_title(signed = TRUE, log_or, allele),
                   y = expression(-log[10](italic(P)))) +
-    theme_brownstone(base_size = base_size) + .legend_on_top(base_size) +
+    theme_maffect(base_size = base_size) + .legend_on_top(base_size) +
     ggplot2::theme(
       panel.grid.major.x = ggplot2::element_line(colour = .ink$grid, linewidth = 0.3),
       axis.text.y.right = ggplot2::element_text(colour = .ink$muted, size = base_size * .text_size$note,

@@ -1,4 +1,4 @@
-#' Miami plot: two Brownstone plots, one above the other
+#' Miami plot: two Manhattan plots, one above the other
 #'
 #' @description
 #' Compares two GWAS (for example two sexes, two ancestries or two related
@@ -6,7 +6,7 @@
 #' chromosome axis and the second's hangs below it; beneath them, an effect
 #' track does the same for |beta|: the first GWAS's effects rise from a zero
 #' line and the second's hang from it. Everything else is as in
-#' [brownstone()]: hits are coloured by minor allele frequency (one palette for
+#' [manhattan()]: hits are coloured by minor allele frequency (one palette for
 #' both GWAS), loci are labelled with their nearest gene, and both axes break
 #' to make room for very strong signals.
 #'
@@ -21,7 +21,7 @@
 #'   GWAS. When the two files name their columns differently, standardise each
 #'   first with [standardise_sumstats()] and pass the results.
 #'
-#' @inheritParams brownstone
+#' @inheritParams manhattan
 #' @param top,bottom GWAS summary statistics, one row per variant, for the
 #'   upper and lower halves. Columns are detected automatically; see
 #'   [standardise_sumstats()].
@@ -30,7 +30,7 @@
 #' @param names Names of the two GWAS, printed beside each half: top left of
 #'   the upper half, bottom left of the lower half. By default, the expressions
 #'   passed as `top` and `bottom`.
-#' @param labels How to label loci, as in [brownstone()]. A data frame of labels
+#' @param labels How to label loci, as in [manhattan()]. A data frame of labels
 #'   labels each listed variant in whichever GWAS it is found.
 #' @param max_labels Label at most this many loci in each half (the most
 #'   significant).
@@ -155,7 +155,7 @@ miami_plot <- function(top, bottom, ..., names = NULL, build = c("GRCh38", "GRCh
   if (!has_effects) {
     return(patchwork::wrap_plots(upper, lower, ncol = 1, guides = "collect",
                                  axis_titles = "collect_y") +
-             patchwork::plot_annotation(theme = theme_brownstone(base_size = base_size)))
+             patchwork::plot_annotation(theme = theme_maffect(base_size = base_size)))
   }
 
   tr <- lapply(1:2, function(k) {
@@ -178,14 +178,14 @@ miami_plot <- function(top, bottom, ..., names = NULL, build = c("GRCh38", "GRCh
   # A bold rule separates the two mirrored plots: -log10(P) above, |beta|
   # below.
   rule <- ggplot2::ggplot() +
-    ggplot2::geom_hline(yintercept = 0, colour = .ink$secondary, linewidth = 1.1) +
+    ggplot2::geom_hline(yintercept = 0, colour = .ink$secondary, linewidth = .ground_width) +
     ggplot2::scale_x_continuous(limits = c(0, 1), expand = ggplot2::expansion(0)) +
     ggplot2::theme_void() + ggplot2::theme(plot.margin = ggplot2::margin(4, 10, 4, 6))
   h <- (1 - track_height) / 2
   patchwork::wrap_plots(upper, lower, rule, track, ncol = 1,
                         heights = c(h, h, 0.01, track_height),
                         guides = "collect", axis_titles = "collect_y") +
-    patchwork::plot_annotation(theme = theme_brownstone(base_size = base_size))
+    patchwork::plot_annotation(theme = theme_maffect(base_size = base_size))
 }
 
 # Each half of a Miami panel is named in the margin, top left for the upper

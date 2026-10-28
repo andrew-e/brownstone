@@ -14,7 +14,7 @@ maf_ramp(palette = c("viridis", "mako", "blue"))
 A character vector of hex colours, most common first.
 }
 \description{
-Used by \code{brownstone(maf_scale = "continuous")}. Every ramp changes
+Used by \code{manhattan(maf_scale = "continuous")}. Every ramp changes
 lightness monotonically, so it stays readable with any form of colour
 blindness, and puts rare variants at the dark, salient end.
 }

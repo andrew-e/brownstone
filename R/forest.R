@@ -10,11 +10,11 @@
 #'   Odds ratios are drawn on the log scale, so that intervals are symmetric,
 #'   and labelled as odds ratios.
 #' * **Lead variants are coloured by minor allele frequency**, as in
-#'   [brownstone()].
+#'   [manhattan()].
 #' * **Rows are labelled** with the nearest gene and the variant ID, or the ID
 #'   alone with `annotate = NULL`.
 #' * **The effect axis reacts to the data**: linear, unless a few effects dwarf
-#'   the rest; then, as on the effect track of [brownstone()], it breaks and puts
+#'   the rest; then, as on the effect track of [manhattan()], it breaks and puts
 #'   the outliers on a log scale. Confidence intervals beyond the axis are
 #'   clipped at its edge.
 #'
@@ -118,7 +118,7 @@ forest_plot <- function(data, ..., compare = NULL, names = NULL,
   loci$class <- cp$class
 
   # Room for every estimate, but one very wide interval doesn't squash the rest
-  # (as on brownstone()'s effect track).
+  # (as on manhattan()'s effect track).
   top <- max(min(max(abs(c(loci$lo, loci$hi))), 1.6 * max(abs(loci$beta))), 1e-12)
   ax <- .effect_axis(abs(loci$beta), top, effect_scale, max_estimate = max(abs(loci$beta)))
   pts <- point_size * base_size / 10
@@ -143,12 +143,13 @@ forest_plot <- function(data, ..., compare = NULL, names = NULL,
       labels = function(b) .as_plotmath(.effect_labels(b, log_or)),
       expand = ggplot2::expansion(mult = 0.04)
     ) +
-    ggplot2::scale_y_discrete(labels = .as_plotmath(row_lab)) +
+    ggplot2::scale_y_discrete(labels = .as_plotmath(row_lab$left),
+                              sec.axis = .forest_id_axis(row_lab)) +
     ggplot2::labs(x = .effect_title(signed = TRUE, log_or, allele), y = NULL) +
-    theme_brownstone(base_size = base_size) + .legend_on_top(base_size) +
+    theme_maffect(base_size = base_size) + .legend_on_top(base_size) +
+    .forest_label_theme(base_size) +
     ggplot2::theme(
-      panel.grid.major.x = ggplot2::element_line(colour = .ink$grid, linewidth = 0.3),
-      axis.text.y = ggplot2::element_text(colour = .ink$primary)
+      panel.grid.major.x = ggplot2::element_line(colour = .ink$grid, linewidth = 0.3)
     )
 }
 
@@ -156,22 +157,38 @@ forest_plot <- function(data, ..., compare = NULL, names = NULL,
   p_txt <- parse(text = paste("italic(P) <", .p_plotmath(threshold)))[[1]]
   message("No loci reach P < ", format(threshold), "; the forest plot is empty.")
   ggplot2::ggplot() +
-    ggplot2::annotate("text", x = 0, y = 0, colour = .ink$muted,
+    ggplot2::annotate("text", x = 0, y = 0, colour = .ink$muted, family = .family(),
                       size = base_size * .text_size$legend / ggplot2::.pt,
                       label = deparse(bquote("No loci reach" ~ .(p_txt))), parse = TRUE) +
     ggplot2::labs(x = .effect_title(signed = TRUE, log_or, allele), y = NULL) +
-    theme_brownstone(base_size = base_size) +
+    theme_maffect(base_size = base_size) +
     ggplot2::theme(axis.text = ggplot2::element_blank(),
                    panel.grid.major.y = ggplot2::element_blank())
 }
 
-# Row labels: the nearest gene and the variant ID, or the ID alone. Beside a
-# gene name, chr:pos:ref:alt IDs are shortened to chr:pos: the alleles would
-# make the labels half the width of a single-column figure.
+# Row labels, as plotmath: the nearest gene on the left, in ink, and its
+# variant ID on the right, in muted ink, so the names read first; a variant
+# without a gene has its ID on the left. Beside a gene name, chr:pos:ref:alt
+# IDs are shortened to chr:pos: the alleles would make them half the width of
+# a single-column figure.
 .forest_row_labels <- function(gene, snp) {
-  ifelse(is.na(gene), .pm_string(snp),
-         sprintf("italic(%s) ~~ %s", .pm_string(gene),
-                 .pm_string(paste0("(", .short_id(snp), ")"))))
+  list(left = ifelse(is.na(gene), .pm_string(snp), sprintf("italic(%s)", .pm_string(gene))),
+       right = ifelse(is.na(gene), "''", .pm_string(.short_id(snp))))
+}
+
+# The right-hand axis of variant IDs, when any row has a gene on the left.
+.forest_id_axis <- function(row_lab) {
+  if (all(row_lab$right == "''")) return(ggplot2::waiver())
+  ggplot2::dup_axis(name = NULL, labels = .as_plotmath(row_lab$right))
+}
+
+# Row-label styling shared by the forest plots: genes in ink, IDs muted.
+.forest_label_theme <- function(base_size) {
+  ggplot2::theme(
+    axis.text.y = ggplot2::element_text(colour = .ink$primary),
+    axis.text.y.right = ggplot2::element_text(colour = .ink$muted, hjust = 0,
+                                              size = base_size * .text_size$note)
+  )
 }
 
 # forest_plot(compare = ): both GWAS's estimates for one variant per region,
@@ -244,7 +261,7 @@ forest_plot <- function(data, ..., compare = NULL, names = NULL,
   gene <- if (isTRUE(annotate == "nearest_gene")) {
     nearest_gene(reps$chr, reps$pos, build = build)$gene
   } else rep(NA_character_, nrow(reps))
-  row_lab <- .forest_row_labels(gene, reps$snp)[order(rank)]
+  row_lab <- lapply(.forest_row_labels(gene, reps$snp), function(l) l[order(rank)])
   est$lo <- est$beta - 1.96 * est$se
   est$hi <- est$beta + 1.96 * est$se
 
@@ -295,15 +312,18 @@ forest_plot <- function(data, ..., compare = NULL, names = NULL,
       labels = function(b) .as_plotmath(.effect_labels(b, log_or)),
       expand = ggplot2::expansion(mult = 0.04)
     ) +
-    ggplot2::scale_y_continuous(breaks = seq_len(n), labels = .as_plotmath(row_lab),
-                                limits = c(0.5, n + 0.5), expand = ggplot2::expansion(0)) +
+    ggplot2::scale_y_continuous(breaks = seq_len(n), labels = .as_plotmath(row_lab$left),
+                                limits = c(0.5, n + 0.5), expand = ggplot2::expansion(0),
+                                sec.axis = .forest_id_axis(row_lab)) +
     ggplot2::labs(x = .effect_title(signed = TRUE, log_or, allele), y = NULL,
                   caption = bquote("Hollow:" ~ .(p_txt) ~ "in that GWAS")) +
-    theme_brownstone(base_size = base_size) + .legend_on_top(base_size) +
+    theme_maffect(base_size = base_size) + .legend_on_top(base_size) +
+    .forest_label_theme(base_size) +
     ggplot2::theme(
       panel.grid.major.x = ggplot2::element_line(colour = .ink$grid, linewidth = 0.3),
       panel.grid.major.y = ggplot2::element_blank(),
-      axis.text.y = ggplot2::element_text(colour = .ink$primary)
+      # The two legends' keys on one line, though only the first has a title.
+      legend.box.just = "bottom"
     )
 }
 

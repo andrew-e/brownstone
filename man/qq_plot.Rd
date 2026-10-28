@@ -54,8 +54,9 @@ the axis is linear; above it -log10(P) is on a log scale given about 15\%
 of the panel height per decade (12-35\% in total, and never more than a
 linear axis would give it), so the long tails keep their order without
 taking space from the threshold region. \code{"auto"} (the default) breaks at
-2.5 times the significance line, rounded (20 for 5e-8), and only when
-something goes above it; a number sets the break; \code{FALSE} turns it off.}
+2.5 times the significance line, rounded (20 for 5e-8), and only once the
+data climb to about twice that line; a number sets the break; \code{FALSE}
+turns it off.}
 
 \item{base_size}{Base font size, in points.}
 
@@ -67,7 +68,7 @@ A ggplot.
 \description{
 Plots each variant's observed -log10(P) against the value expected if no
 variant were associated. By default there is one curve per minor allele
-frequency class, in the same colours as \code{\link[=brownstone]{brownstone()}}, each compared with
+frequency class, in the same colours as \code{\link[=manhattan]{manhattan()}}, each compared with
 its own expected distribution: test statistics for rare variants are often
 calibrated differently from common ones, and a single curve hides that.
 The genomic inflation factor, \eqn{\lambda_{GC}}, is printed on the plot,
@@ -97,7 +98,7 @@ all stay distinguishable with colour blindness.
 }
 
 Below the significance line, points that would be drawn on top of each
-other are thinned (as in \code{\link[=brownstone]{brownstone()}}), so millions of variants plot
+other are thinned (as in \code{\link[=manhattan]{manhattan()}}), so millions of variants plot
 quickly.
 }
 \examples{

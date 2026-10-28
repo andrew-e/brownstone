@@ -2,7 +2,7 @@
 % Please edit documentation in R/region.R
 \name{region_plot}
 \alias{region_plot}
-\title{Regional Brownstone plot, with linkage disequilibrium}
+\title{Regional Manhattan plot, with linkage disequilibrium}
 \usage{
 region_plot(
   data,
@@ -71,7 +71,7 @@ grey: they are the base of that locus's tower, not a peak of their own.}
 \item{ld_breaks}{Boundaries of the r² bins.}
 
 \item{effect_scale}{How the effect axis reacts to the data, as in
-\code{\link[=brownstone]{brownstone()}}.}
+\code{\link[=manhattan]{manhattan()}}.}
 
 \item{maf_breaks}{Boundaries of the minor allele frequency classes (at most
 four classes).}
@@ -94,7 +94,7 @@ A patchwork object.
 Zooms in on one region of the genome, in the spirit of LocusZoom: every
 variant's -log10(P) by position, coloured by its linkage disequilibrium
 (LD) with the lead variant, above an effect track and a gene track. Unlike a
-classic regional plot it keeps what a \code{\link[=brownstone]{brownstone()}} plot adds:
+classic regional plot it keeps what a \code{\link[=manhattan]{manhattan()}} plot adds:
 \itemize{
 \item \strong{LD with the lead is the colour}: r² in five bins (\code{ld_breaks}), from
 light (no LD) to dark (r² >= 0.8), fetched from LDlink (see \code{\link[=ld_proxy]{ld_proxy()}})
@@ -121,7 +121,7 @@ lead variant in dark ink.
 LD is fetched from LDlink by default, which needs a token in \code{LDLINK_TOKEN}
 (see \code{\link[=ld_proxy]{ld_proxy()}}); without one the call stops. Without LD
 (\code{use_ld_info = FALSE}, or LDlink unreachable) the plot is a zoomed-in
-Brownstone plot: hits coloured by frequency class.
+Manhattan plot: hits coloured by frequency class.
 
 The region is given by one of \code{snp}, \code{gene}, or \code{chr}, \code{start} and \code{end};
 with none of them, it is centred on the most significant variant. Every

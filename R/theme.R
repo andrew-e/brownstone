@@ -81,11 +81,20 @@ maf_colours <- function(n = 4, palette = c("contrast", "ordinal")) {
 #' `base_size` and are chosen to stay legible at journal size: for a
 #' double-column figure (183 mm wide), use `base_size = 8`.
 #'
+#' Text is set in `"maffect-sans"`, a name registered when the package
+#' loads for the best modern sans already installed: Source Sans 3 or Inter
+#' if you have them, otherwise Avenir Next (macOS), Segoe UI (Windows), or
+#' Noto Sans or Open Sans (Linux). PDF and PostScript devices get Helvetica
+#' under the same name. Every plot of the package uses it, labels included;
+#' to use another family everywhere, set
+#' `options(maffect.family = "<family>")` (`""` for the device's default).
+#'
 #' @param base_size Base font size, in points.
 #' @param base_family Base font family.
 #' @return A ggplot2 theme.
 #' @export
-theme_brownstone <- function(base_size = 10, base_family = "") {
+theme_maffect <- function(base_size = 10,
+                             base_family = getOption("maffect.family", "maffect-sans")) {
   sz <- function(k) base_size * .text_size[[k]]
   ggplot2::theme_minimal(base_size = base_size, base_family = base_family) +
     ggplot2::theme(
@@ -125,7 +134,7 @@ theme_brownstone <- function(base_size = 10, base_family = "") {
 
 #' Colour ramps for a continuous minor allele frequency scale
 #'
-#' Used by `brownstone(maf_scale = "continuous")`. Every ramp changes
+#' Used by `manhattan(maf_scale = "continuous")`. Every ramp changes
 #' lightness monotonically, so it stays readable with any form of colour
 #' blindness, and puts rare variants at the dark, salient end.
 #'

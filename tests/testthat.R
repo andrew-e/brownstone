@@ -1,4 +1,4 @@
 library(testthat)
-library(brownstone)
+library(maffect)
 
-test_check("brownstone")
+test_check("maffect")

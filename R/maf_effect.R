@@ -6,7 +6,7 @@
 #' with small ones fit together in one GWAS.
 #'
 #' * **Frequency is on a log scale**, which spreads out the rare end where most
-#'   variants are. Alternating bands mark the frequency classes of [brownstone()]
+#'   variants are. Alternating bands mark the frequency classes of [manhattan()]
 #'   (`maf_breaks`).
 #' * **Significance is shown by style, not colour** (frequency is already on the
 #'   x axis): genome-wide significant variants are solid, peaks that only reach
@@ -14,11 +14,15 @@
 #'   thinned where points would be drawn on top of each other.
 #' * **Effects are |beta| by default** (or the odds ratio of the risk allele):
 #'   the size of an effect, whichever allele the GWAS reported. With
-#'   `effects = "signed"`, beta is oriented to the minor allele. As on the effect
-#'   track of [brownstone()], the axis breaks for a few outlying estimates
-#'   (`effect_scale`).
+#'   `effects = "signed"`, beta is oriented to the minor allele.
+#' * **The effect axis reacts to the data**, as on [manhattan()]'s effect
+#'   track: linear, unless a few estimates dwarf the lead effects; then it
+#'   breaks (at 3 times the median lead effect, rounded) and puts the outliers
+#'   on a log scale (`effect_scale`).
 #' * **Genome-wide significant loci are labelled** with their nearest gene (or
-#'   `labels`), at their lead variant.
+#'   `labels`), at their lead variant: alternately the largest remaining effect
+#'   and the most significant remaining locus, so the most elevated points and
+#'   the strongest signals are both named within `max_labels`.
 #' * **Effects that disagree with their own allele frequencies are flagged.**
 #'   For binary traits whose summary statistics report the allele frequency
 #'   among cases and among controls, a lead variant whose reported effect
@@ -34,7 +38,9 @@
 #'   actually run, not an idealised one) is estimated from the variants
 #'   themselves: the median of `SE x sqrt(2f(1 - f))`. The boundary is then
 #'   *(z*(1-*α*/2)* + z*(power)*) x typical SE*, with *α* the `threshold`.
-#'   `detection = FALSE` removes it; `power` sets the level, or levels.
+#'   `detection = FALSE` removes it; `power` sets the level, or levels. Each
+#'   level is named in the right-hand margin, and a curve stops where it
+#'   leaves the effect axis at the rare end.
 #'
 #' Variants without an allele frequency, or with a frequency of 0, are left out.
 #' Effects are not corrected for winner's curse, which inflates rare variants
@@ -100,11 +106,12 @@ effect_vs_maf <- function(data, ..., build = c("GRCh38", "GRCh37"),
   if (is.data.frame(labels)) labels <- .label_table(labels, d)
   cl <- .clump(d, floor_logp, window)
   gws_leads <- cl$lead[d$logp[cl$lead] >= sig]
-  lab <- .locus_labels(labels, label_col, d, gws_leads, sig, build, max_labels)
+  lab <- .locus_labels(labels, label_col, d,
+                       .label_order(gws_leads, abs(d$beta[gws_leads]), d$logp[gws_leads]),
+                       sig, build, max_labels)
   lab$y <- d$y[lab$x]
   lab$x <- log10(d$maf[lab$x])
 
-  # The effect axis is set by the lead effects, as on brownstone()'s track.
   top <- max(abs(d$y))
   ax <- .effect_axis(abs(d$beta[gws_leads]), top, effect_scale, max_estimate = top)
   lim <- if (signed) c(-top, top) else c(0, top)
@@ -143,8 +150,9 @@ effect_vs_maf <- function(data, ..., build = c("GRCh38", "GRCh37"),
   breaks <- sort(unique(c(10^seq(log10(lo), -1), maf_breaks, 0.5)))
   breaks <- breaks[breaks >= lo & breaks <= 0.5]
 
-  # The detection boundary, over the drawn frequency range.
+  # The detection boundary, over the drawn frequency range and on the axis.
   bnd <- if (detection) .detection_boundary(c_se, lo, threshold, power, signed)
+  bnd <- .clip_boundary(bnd, top)
 
   ggplot2::ggplot() +
     ggplot2::annotate("rect", xmin = bands$xmin, xmax = bands$xmax, ymin = -Inf, ymax = Inf,
@@ -152,8 +160,8 @@ effect_vs_maf <- function(data, ..., build = c("GRCh38", "GRCh37"),
     ggplot2::geom_hline(yintercept = 0, colour = .ink$axis, linewidth = 0.4) +
     ggplot2::geom_point(data = noise, ggplot2::aes(x = .data$x, y = .data$y),
                         colour = .ink$noise, size = 0.45 * pts, stroke = 0) +
-    .boundary_layers(bnd, base_size) +
     .effect_break(ax, top, signed = signed, axis = "y") +
+    .boundary_layers(bnd) +
     .hit_layers(hits, cs, legend = FALSE, sig, sugg, pts) +
     .repel_labels(lab, near, base_size) +
     ggplot2::scale_x_continuous(
@@ -163,13 +171,18 @@ effect_vs_maf <- function(data, ..., build = c("GRCh38", "GRCh37"),
     ) +
     ggplot2::scale_y_continuous(
       transform = ax$trans, limits = lim, oob = scales::oob_squish,
-      breaks = .track_breaks(ax, top, signed = signed, log_or = log_or),
+      breaks = .track_breaks(ax, top, signed = signed, log_or = log_or, roomy = TRUE),
       labels = function(b) .as_plotmath(.effect_labels(b, log_or)),
-      expand = ggplot2::expansion(mult = c(if (signed) 0.04 else 0.01, 0.04))
+      expand = ggplot2::expansion(mult = c(if (signed) 0.04 else 0.01, 0.04)),
+      sec.axis = .boundary_axis(bnd)
     ) +
     ggplot2::labs(x = "Minor allele frequency", y = .effect_title(signed, log_or, allele)) +
-    theme_brownstone(base_size = base_size) + .legend_on_top(base_size) +
-    ggplot2::theme(panel.grid.major.y = ggplot2::element_blank())
+    theme_maffect(base_size = base_size) + .legend_on_top(base_size) +
+    ggplot2::theme(
+      panel.grid.major.y = ggplot2::element_blank(),
+      axis.text.y.right = ggplot2::element_text(colour = .ink$muted, hjust = 0,
+                                                size = base_size * .text_size$note)
+    )
 }
 
 # The constant of the typical standard error: SE(beta) ~ c / sqrt(2 f (1 - f))
@@ -206,21 +219,44 @@ effect_vs_maf <- function(data, ..., build = c("GRCh38", "GRCh37"),
   do.call(rbind, curves)
 }
 
-# The boundary's layers: the curve(s) over the cloud, and one label per power
-# at the common (right-hand) end of its curve, where it sits lowest.
-.boundary_layers <- function(bnd, base_size) {
+# The boundary where it is on the axis: a curve that rises past the top of the
+# effect axis (at the rare end) stops at the panel's edge, rather than being
+# squished flat along it, which would read as a boundary that levels off.
+.clip_boundary <- function(bnd, top) {
   if (is.null(bnd)) return(NULL)
+  out <- lapply(split(bnd, bnd$curve), function(b) {
+    over <- abs(b$y) > top
+    if (!any(over)) return(b)
+    if (all(over)) return(NULL)
+    # The curve falls with frequency: it meets the edge after its last point
+    # above it.
+    i <- max(which(over))
+    t <- (abs(b$y[i]) - top) / (abs(b$y[i]) - abs(b$y[i + 1]))
+    edge <- b[i, ]
+    edge$x <- b$x[i] + t * (b$x[i + 1] - b$x[i])
+    edge$y <- sign(b$y[i]) * top
+    rbind(edge, b[!over, ])
+  })
+  out <- do.call(rbind, out)
+  if (is.null(out) || !nrow(out)) NULL else out
+}
+
+# The boundary's curve(s), over the cloud.
+.boundary_layers <- function(bnd) {
+  if (is.null(bnd)) return(NULL)
+  ggplot2::geom_line(
+    data = bnd, ggplot2::aes(x = .data$x, y = .data$y, group = .data$curve),
+    colour = .ink$secondary, linewidth = 0.35
+  )
+}
+
+# Each power is named in the right-hand margin, level with the common end of
+# its curve (where it sits lowest), as the P-values of the significance lines
+# are on the other plots: there no hit can cover it.
+.boundary_axis <- function(bnd) {
+  if (is.null(bnd)) return(ggplot2::waiver())
   up <- bnd[bnd$side == 1, ]
   lab <- up[!duplicated(up$power, fromLast = TRUE), ]
-  list(
-    ggplot2::geom_line(
-      data = bnd, ggplot2::aes(x = .data$x, y = .data$y, group = .data$curve),
-      colour = .ink$secondary, linewidth = 0.35
-    ),
-    ggplot2::annotate(
-      "text", x = lab$x, y = lab$y, hjust = 1, vjust = -0.5,
-      label = sprintf("%g%% power", 100 * lab$power),
-      size = base_size * .text_size$note / ggplot2::.pt, colour = .ink$muted
-    )
-  )
+  ggplot2::dup_axis(name = NULL, breaks = lab$y,
+                    labels = sprintf("%g%% power", 100 * lab$power))
 }

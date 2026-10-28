@@ -2,7 +2,7 @@
 % Please edit documentation in R/miami.R
 \name{miami_plot}
 \alias{miami_plot}
-\title{Miami plot: two Brownstone plots, one above the other}
+\title{Miami plot: two Manhattan plots, one above the other}
 \usage{
 miami_plot(
   top,
@@ -54,7 +54,7 @@ them on the effect track as hollow points (\code{track_suggestive}). Variants
 between the lines that belong to a genome-wide significant locus stay
 grey: they are the base of that locus's tower, not a peak of their own.}
 
-\item{labels}{How to label loci, as in \code{\link[=brownstone]{brownstone()}}. A data frame of labels
+\item{labels}{How to label loci, as in \code{\link[=manhattan]{manhattan()}}. A data frame of labels
 labels each listed variant in whichever GWAS it is found.}
 
 \item{label_suggestive}{Label suggestive loci (after all genome-wide
@@ -114,8 +114,9 @@ the axis is linear; above it -log10(P) is on a log scale given about 15\%
 of the panel height per decade (12-35\% in total, and never more than a
 linear axis would give it), so the long tails keep their order without
 taking space from the threshold region. \code{"auto"} (the default) breaks at
-2.5 times the significance line, rounded (20 for 5e-8), and only when
-something goes above it; a number sets the break; \code{FALSE} turns it off.}
+2.5 times the significance line, rounded (20 for 5e-8), and only once the
+data climb to about twice that line; a number sets the break; \code{FALSE}
+turns it off.}
 
 \item{track_height}{Fraction of the figure height given to the effect track
 (both halves together).}
@@ -150,7 +151,7 @@ traits) on one genome axis. The first GWAS's Manhattan rises above the
 chromosome axis and the second's hangs below it; beneath them, an effect
 track does the same for |beta|: the first GWAS's effects rise from a zero
 line and the second's hang from it. Everything else is as in
-\code{\link[=brownstone]{brownstone()}}: hits are coloured by minor allele frequency (one palette for
+\code{\link[=manhattan]{manhattan()}}: hits are coloured by minor allele frequency (one palette for
 both GWAS), loci are labelled with their nearest gene, and both axes break
 to make room for very strong signals.
 \itemize{

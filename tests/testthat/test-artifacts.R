@@ -99,7 +99,7 @@ test_that("the margins are the arguments", {
 
 test_that("the plots mark flagged leads and stay quiet without frequencies", {
   x <- artifact_gwas()
-  pb <- suppressMessages(brownstone(x, labels = NULL))
+  pb <- suppressMessages(manhattan(x, labels = NULL))
   expect_equal(n_ring(pb[[1]]), 0)   # the main panel: no marker
   expect_equal(n_ring(pb[[2]]), 1)   # the effect track
   expect_message(p <- effect_vs_maf(x, labels = NULL), "see find_artifacts")
@@ -108,7 +108,7 @@ test_that("the plots mark flagged leads and stay quiet without frequencies", {
   expect_equal(n_ring(p), 1)
   # no case/control frequency columns: no marker, no message, no error
   gw <- simulate_gwas(n_variants = 5e4, seed = 1)
-  pb <- expect_silent(brownstone(gw, labels = NULL))
+  pb <- expect_silent(manhattan(gw, labels = NULL))
   expect_equal(n_ring(pb[[2]]), 0)
   expect_equal(n_ring(effect_vs_maf(gw, labels = NULL)), 0)
   expect_silent(volcano_plot(gw, labels = NULL))

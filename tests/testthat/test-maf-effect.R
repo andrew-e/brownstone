@@ -55,9 +55,23 @@ test_that("only genome-wide significant loci are labelled, up to max_labels", {
   loci <- find_loci(gw)
   lab <- repel(effect_vs_maf(gw, suggestive = 1e-5))
   expect_length(lab, min(nrow(loci), 10))
-  expect_equal(lab[1], loci$gene[1])
-  expect_length(repel(effect_vs_maf(gw, max_labels = 2)), 2)
+  # Alternately the largest effect and the most significant locus.
+  expect_equal(repel(effect_vs_maf(gw, max_labels = 2)),
+               c(loci$gene[which.max(abs(loci$beta))], loci$gene[1]))
   expect_gt(nrow(point_layer(effect_vs_maf(gw, suggestive = 1e-5), "hollow")), 0)
+})
+
+test_that("the effect axis breaks for outlying effects, as on manhattan()'s track", {
+  scale_name <- function(p) p$scales$get_scales("y")$get_transformation()$name
+  p <- effect_vs_maf(gw, labels = NULL)
+  expect_equal(scale_name(p), "broken_log")
+  expect_no_error(ggplot2::ggplot_build(p))
+  expect_equal(scale_name(effect_vs_maf(gw, labels = NULL, effect_scale = "linear")), "identity")
+})
+
+test_that("labels alternate between the plot's two axes", {
+  expect_equal(.label_order(1:4, c(4, 3, 2, 1), c(1, 2, 3, 4)), c(1L, 4L, 2L, 3L))
+  expect_equal(.label_order(1:3, c(3, 2, 1), c(3, 2, 1)), 1:3)
 })
 
 test_that("frequency and effect columns are both required", {
@@ -110,18 +124,41 @@ test_that("the boundary tracks the median SE of variants at each frequency", {
                z * stats::median(d$se[mid]), tolerance = 0.1)
 })
 
-test_that("the boundary is labelled with its power at the common end", {
+test_that("the boundary is named in the right-hand margin, level with its common end", {
   p <- effect_vs_maf(gw, labels = NULL)
-  i <- which(vapply(p$layers, function(l) {
-    inherits(l$geom, "GeomText") && grepl("power", paste(l$aes_params$label, collapse = ""))
-  }, logical(1)))
-  expect_length(i, 1)
-  ld <- ggplot2::layer_data(p, i)
-  expect_equal(ld$label, "80% power")
-  expect_equal(ld$x, log10(0.5))
+  sec <- p$scales$get_scales("y")$secondary.axis
+  expect_equal(sec$labels, "80% power")
   z <- stats::qnorm(1 - 5e-8 / 2) + stats::qnorm(0.8)
-  expect_equal(y_inverse(p, ld$y),
-               z * .se_unit(standardise_sumstats(gw)) / sqrt(2 * 0.5 * 0.5))
+  expect_equal(sec$breaks, z * .se_unit(standardise_sumstats(gw)) / sqrt(2 * 0.5 * 0.5))
+  # No label inside the panel, where hits could cover it.
+  expect_false(any(vapply(p$layers, function(l) inherits(l$geom, "GeomText"), logical(1))))
+  two <- effect_vs_maf(boundary_gwas(), power = c(0.5, 0.8), labels = NULL)
+  expect_equal(two$scales$get_scales("y")$secondary.axis$labels, c("50% power", "80% power"))
+  expect_s3_class(effect_vs_maf(gw, detection = FALSE)$scales$get_scales("y")$secondary.axis,
+                  "waiver")
+})
+
+test_that("a boundary that leaves the axis stops at its edge, not squished along it", {
+  bnd <- .detection_boundary(0.02, 1e-4, 5e-8, 0.8, signed = TRUE)
+  top <- 2
+  clip <- .clip_boundary(bnd, top)
+  expect_true(all(abs(clip$y) <= top + 1e-12))
+  for (s in c(1, -1)) {
+    side <- clip[clip$side == s, ]
+    # It starts exactly at the edge, where the full curve crosses it...
+    full <- bnd[bnd$side == s, ]
+    expect_equal(side$y[1], s * top)
+    expect_equal(side$x[1], approx(abs(full$y), full$x, xout = top)$y, tolerance = 1e-3)
+    # ...and is unchanged from there on.
+    expect_equal(side$y[-1], full$y[abs(full$y) <= top])
+  }
+  expect_equal(.clip_boundary(bnd, 1e6), bnd[order(bnd$curve), ], ignore_attr = TRUE)
+  expect_null(.clip_boundary(bnd, 1e-6))
+  expect_null(.clip_boundary(NULL, 1))
+  # In the plot, nothing of the curve is above the top of the axis.
+  p <- effect_vs_maf(gw, labels = NULL)
+  ld <- line_layer(p)
+  expect_lte(max(y_inverse(p, ld$y)), max(abs(standardise_sumstats(gw)$beta)) + 1e-9)
 })
 
 test_that("signed effects mirror the boundary; several powers draw several curves", {
@@ -141,9 +178,14 @@ test_that("the boundary is optional, and absent when no SE is estimable", {
   p <- effect_vs_maf(gw, detection = FALSE, labels = NULL)
   expect_null(line_layer(p))
   expect_null(.detection_boundary(NA_real_, 1e-4, 5e-8, 0.8, FALSE))
-  expect_null(.boundary_layers(NULL, 10))
+  expect_null(.boundary_layers(NULL))
 })
 
 test_that("power is a level, not a percentage", {
   expect_error(effect_vs_maf(gw, power = 80), "between 0 and 1")
+})
+
+test_that("without outlying effects the effect axis stays linear", {
+  p <- effect_vs_maf(boundary_gwas(), labels = NULL)
+  expect_equal(p$scales$get_scales("y")$get_transformation()$name, "identity")
 })

@@ -1,10 +1,9 @@
-Package: brownstone
-Title: Brownstone Plots: Manhattan Plots that Also Show Effect Sizes
+Package: maffect
+Title: Manhattan Plots with Effect Sizes, Allele Frequency and Genes
 Version: 0.0.0.9000
 Authors@R:
     person("Andrew", "Elmore", , "andrew.elmore@bristol.ac.uk", role = c("aut", "cre"))
-Description: Draws Brownstone plots, a successor to the GWAS Manhattan plot.
-    Alongside the usual
+Description: Draws an enhanced GWAS Manhattan plot. Alongside the usual
     -log10(P) skyline it shows each locus's effect size and its uncertainty on
     an aligned track beneath the chromosome axis, encodes minor allele
     frequency so that rare and common variant signals can be read on the same
@@ -23,6 +22,7 @@ Imports:
     patchwork,
     scales (>= 1.3.0),
     stats,
+    systemfonts (>= 1.1.0),
     utils
 Suggests:
     knitr,

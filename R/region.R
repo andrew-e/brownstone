@@ -1,10 +1,10 @@
-#' Regional Brownstone plot, with linkage disequilibrium
+#' Regional Manhattan plot, with linkage disequilibrium
 #'
 #' @description
 #' Zooms in on one region of the genome, in the spirit of LocusZoom: every
 #' variant's -log10(P) by position, coloured by its linkage disequilibrium
 #' (LD) with the lead variant, above an effect track and a gene track. Unlike a
-#' classic regional plot it keeps what a [brownstone()] plot adds:
+#' classic regional plot it keeps what a [manhattan()] plot adds:
 #'
 #' * **LD with the lead is the colour**: r² in five bins (`ld_breaks`), from
 #'   light (no LD) to dark (r² >= 0.8), fetched from LDlink (see [ld_proxy()])
@@ -30,14 +30,14 @@
 #' LD is fetched from LDlink by default, which needs a token in `LDLINK_TOKEN`
 #' (see [ld_proxy()]); without one the call stops. Without LD
 #' (`use_ld_info = FALSE`, or LDlink unreachable) the plot is a zoomed-in
-#' Brownstone plot: hits coloured by frequency class.
+#' Manhattan plot: hits coloured by frequency class.
 #'
 #' The region is given by one of `snp`, `gene`, or `chr`, `start` and `end`;
 #' with none of them, it is centred on the most significant variant. Every
 #' call standardises `data`: for several plots of a large GWAS, standardise it
 #' once with [standardise_sumstats()] and pass the result.
 #'
-#' @inheritParams brownstone
+#' @inheritParams manhattan
 #' @param snp The lead variant, by ID (`"rs7412"`, or the data's own IDs) or
 #'   position (`"19:44908822"`). The region is `flank` base pairs either side.
 #' @param gene A gene symbol: the region is the gene, plus `flank` either side.
@@ -53,7 +53,7 @@
 #' @param pop,token The LDlink reference population and access token.
 #' @param ld_breaks Boundaries of the r² bins.
 #' @param effect_scale How the effect axis reacts to the data, as in
-#'   [brownstone()].
+#'   [manhattan()].
 #' @param maf_breaks Boundaries of the minor allele frequency classes (at most
 #'   four classes).
 #' @param genes `TRUE` for the bundled gene table of `build`, a data frame of
@@ -157,7 +157,7 @@ region_plot <- function(data, ..., snp = NULL, gene = NULL, chr = NULL, start = 
   }
   # Titles added with plot_annotation() take the theme's (large, centred) style.
   patchwork::wrap_plots(panels, ncol = 1, heights = heights) +
-    patchwork::plot_annotation(theme = theme_brownstone(base_size = base_size))
+    patchwork::plot_annotation(theme = theme_maffect(base_size = base_size))
 }
 
 # The region and, if given by `snp`, its lead variant (a row of `d`).
@@ -352,7 +352,9 @@ region_plot <- function(data, ..., snp = NULL, gene = NULL, chr = NULL, start = 
     ggstar::scale_starshape_manual(
       values = shapes, limits = present,
       labels = .maf_legend_labels(present), name = "Minor allele frequency",
-      guide = if (legend && length(present)) {
+      # Shapes need a key only where they differ from the plain circle of a
+      # common variant: a key with that circle alone says nothing.
+      guide = if (legend && length(present) && !identical(present, levels(r$class)[1])) {
         ggplot2::guide_legend(order = 2, override.aes = list(
           fill = "white", colour = .ink$secondary, starstroke = 0.5,
           size = 2.8 * pts * .shape_size(shapes[present])))
@@ -390,14 +392,16 @@ region_plot <- function(data, ..., snp = NULL, gene = NULL, chr = NULL, start = 
                                                 starshape = .data$class),
                       colour = hits$edge, starstroke = 0.3 * pts,
                       size = 2 * pts * .shape_size(shapes[as.character(hits$class)])),
+    # show.legend = TRUE: ggplot2 (>= 3.5) draws a key for an r² bin with no
+    # variants in the region only from a layer that asks for one explicitly.
     ggstar::geom_star(data = lead, ggplot2::aes(x = .data$pos, y = .data$y, fill = .data$ld,
                                                 starshape = .data$class),
-                      colour = .ink$primary, starstroke = 0.6 * pts,
+                      colour = .ink$primary, starstroke = 0.6 * pts, show.legend = TRUE,
                       size = 3.6 * pts * .shape_size(shapes[as.character(lead$class)]))
   )
 }
 
-# Variants drawn without LD, as in brownstone(): a grey floor and hits in
+# Variants drawn without LD, as in manhattan(): a grey floor and hits in
 # their frequency-class colour (solid, or rings for suggestive peaks).
 .maf_points <- function(r, y, sig, sugg, floor_logp, has_maf, maf_breaks, pts, legend) {
   r$y <- y
@@ -437,7 +441,7 @@ region_plot <- function(data, ..., snp = NULL, gene = NULL, chr = NULL, start = 
   p + .repel_labels(lab, near, base_size, nudge_y = 0.06 * ymax) +
     .p_axis(comp, max_logp, ymax, sig, sugg, below = floor_gap) +
     ggplot2::labs(y = expression(-log[10](italic(P)))) +
-    theme_brownstone(base_size = base_size) +
+    theme_maffect(base_size = base_size) +
     ggplot2::theme(
       panel.grid.major.x = ggplot2::element_line(colour = .ink$grid, linewidth = 0.3),
       axis.text.y.right = ggplot2::element_text(colour = .ink$muted, size = base_size * .text_size$note,
@@ -502,7 +506,7 @@ region_plot <- function(data, ..., snp = NULL, gene = NULL, chr = NULL, start = 
       expand = ggplot2::expansion(mult = c(0.06, 0.08))
     ) +
     ggplot2::labs(y = .effect_title(signed = FALSE, log_or, allele)) +
-    theme_brownstone(base_size = base_size) +
+    theme_maffect(base_size = base_size) +
     ggplot2::theme(panel.grid.major.y = ggplot2::element_blank())
 }
 
@@ -528,25 +532,25 @@ region_plot <- function(data, ..., snp = NULL, gene = NULL, chr = NULL, start = 
     # nearest the lead first, so the lead's gene always keeps its name).
     ggplot2::geom_text(data = shown, ggplot2::aes(x = .data$label_x, y = -.data$row - 0.42,
                                                   label = .data$gene, hjust = .data$hjust),
-                       colour = ink, fontface = "italic", check_overlap = TRUE,
+                       colour = ink, fontface = "italic", check_overlap = TRUE, family = .family(),
                        size = base_size * .text_size$note / ggplot2::.pt)
   if (!nrow(g)) {
     p <- p + ggplot2::annotate("text", x = (reg$start + reg$end) / 2, y = -1, colour = .ink$muted,
-                               label = "No protein-coding genes",
+                               label = "No protein-coding genes", family = .family(),
                                size = base_size * .text_size$note / ggplot2::.pt)
   }
   hidden <- sum(is.na(g$row))
   if (hidden) {
     p <- p + ggplot2::annotate("text", x = reg$end, y = -n_rows - 0.42, hjust = 1, vjust = 0.5,
                                colour = .ink$muted, label = paste0("+", hidden, " genes"),
-                               size = base_size * .text_size$note / ggplot2::.pt)
+                               family = .family(), size = base_size * .text_size$note / ggplot2::.pt)
   }
   p <- p +
     ggplot2::scale_y_continuous(limits = c(-n_rows - 0.75, -0.6), expand = ggplot2::expansion(0)) +
     # In a narrow figure, a name near an edge may run into the margin.
     ggplot2::coord_cartesian(clip = "off") +
     ggplot2::labs(y = NULL) +
-    theme_brownstone(base_size = base_size) +
+    theme_maffect(base_size = base_size) +
     ggplot2::theme(axis.text.y = ggplot2::element_blank(),
                    panel.grid.major.y = ggplot2::element_blank())
   list(plot = p, height = 0.05 + 0.07 * n_rows)

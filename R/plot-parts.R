@@ -1,5 +1,5 @@
 # Pieces shared by the scatter-type plots (volcano_plot(), effect_vs_maf()).
-# Hits are drawn as in brownstone()'s main panel, so the same variant looks the
+# Hits are drawn as in manhattan()'s main panel, so the same variant looks the
 # same in every plot of the package.
 
 # Frequency classes and their colours. Significant variants with no frequency
@@ -60,7 +60,7 @@
   )
 }
 
-# Significance lines, as in brownstone(): their P-values are named on a
+# Significance lines, as in manhattan(): their P-values are named on a
 # right-hand axis (see .p_axis()).
 .p_lines <- function(sig, sugg) {
   list(
@@ -86,6 +86,14 @@
   )
 }
 
+# Lead variants in the order they are labelled: alternately the next one by
+# each score (highest first), so a short label budget names the extremes of
+# both of a plot's axes rather than only the most significant loci.
+.label_order <- function(leads, ...) {
+  ranked <- lapply(list(...), function(s) leads[order(-s)])
+  unique(as.vector(do.call(rbind, ranked)))
+}
+
 # Locus labels (see .locus_labels()) placed with ggrepel, repelling from the
 # points in `near` too: a coarse grid of the hits (thinned by the caller, on
 # the axes as drawn) is enough for that and keeps ggrepel fast.
@@ -99,46 +107,53 @@
     data = rep, mapping = ggplot2::aes(x = .data$x, y = .data$y, label = .data$label,
                                        fontface = .data$fontface),
     colour = rep$colour, size = base_size * .text_size$label / ggplot2::.pt,
-    min.segment.length = 0, segment.colour = .ink$muted, segment.size = 0.25,
-    max.overlaps = Inf, seed = 42, direction = "both", nudge_y = nudge_y,
+    family = .family(), min.segment.length = 0, segment.colour = .ink$muted, segment.size = 0.25,
+    bg.colour = "white", bg.r = 0.12, max.overlaps = Inf, seed = 42, direction = "both", nudge_y = nudge_y,
     ylim = ylim, box.padding = 0.4, point.padding = 0.15, force = 3
   )
 }
 
-# A broken-axis mark across an effect axis (see .effect_axis()) at +-`at`, for
-# `axis = "x"` or `"y"`: the same white strip edged with hairlines as on the
-# -log10(P) axis. Drawn over a dense cloud of points, it shows where the axis
-# changes scale.
+# A broken-axis mark where an axis changes scale: a white gap across the
+# panel between `lo` and `hi` (data units). The gap interrupts bands, grid and
+# points, and the axis labels' jump (20, 50, 100) says the rest. Hairlines
+# along the gap read as two reference lines, and slanted "//" strokes at its
+# ends as stray marks (round 17). `axis = "y"` breaks a vertical axis (a
+# horizontal gap), `"x"` a horizontal one.
+.break_mark <- function(lo, hi, axis = c("y", "x")) {
+  axis <- match.arg(axis)
+  if (axis == "y") {
+    ggplot2::annotate("rect", xmin = -Inf, xmax = Inf, ymin = lo, ymax = hi,
+                      fill = "white", colour = NA)
+  } else {
+    ggplot2::annotate("rect", ymin = -Inf, ymax = Inf, xmin = lo, xmax = hi,
+                      fill = "white", colour = NA)
+  }
+}
+
+# The broken-axis mark (see .break_mark()) across an effect axis (see
+# .effect_axis()) at +-`at`, for `axis = "x"` or `"y"`. Drawn over a dense
+# cloud of points, it shows where the axis changes scale.
 .effect_break <- function(ax, top, signed, axis = c("y", "x")) {
   axis <- match.arg(axis)
   if (is.null(ax$at)) return(NULL)
   gap <- 0.025 * ax$trans$transform(top)
   edges <- c(ax$at - gap, ax$trans$inverse(ax$at + gap))
   sides <- if (signed) c(1, -1) else 1
-  strips <- lapply(sides, function(s) {
+  lapply(sides, function(s) {
     e <- sort(s * edges)
-    if (axis == "y") {
-      ggplot2::annotate("rect", xmin = -Inf, xmax = Inf, ymin = e[1], ymax = e[2],
-                        fill = "white", colour = NA)
-    } else {
-      ggplot2::annotate("rect", ymin = -Inf, ymax = Inf, xmin = e[1], xmax = e[2],
-                        fill = "white", colour = NA)
-    }
+    .break_mark(e[1], e[2], axis)
   })
-  at <- as.vector(outer(edges, sides))
-  hair <- if (axis == "y") {
-    ggplot2::geom_hline(yintercept = at, colour = .ink$axis, linewidth = 0.3)
-  } else {
-    ggplot2::geom_vline(xintercept = at, colour = .ink$axis, linewidth = 0.3)
-  }
-  c(strips, list(hair))
 }
 
-# A bold rule along the foot of a -log10(P) panel that has an effect track
-# beneath it: the ground the towers stand on, so the two panels read apart.
+# A rule along the foot of a -log10(P) panel that has an effect track beneath
+# it: the ground the towers stand on, so the two panels read apart. It is the
+# heaviest rule on the page, but only by enough to be the ground: twice the
+# significance line, not the loudest thing in the figure.
+.ground_width <- 0.6
+
 .ground_rule <- function() {
   ggplot2::theme(axis.line.x.bottom = ggplot2::element_line(colour = .ink$secondary,
-                                                            linewidth = 1.1))
+                                                            linewidth = .ground_width))
 }
 
 # Text as a plotmath string constant, quotes escaped.

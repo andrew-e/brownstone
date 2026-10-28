@@ -63,7 +63,7 @@ test_that("each frequency class is compared with its own expectation", {
   # Thinned, but every point beyond the significance line is drawn.
   expect_lt(nrow(pts), nrow(gw))
   expect_equal(sum(pts$y >= -log10(5e-8) & pts$y < 20), sum(d$logp >= -log10(5e-8) & d$logp < 20))
-  # The y axis breaks at 20, as in brownstone().
+  # The y axis breaks at 20, as in manhattan().
   expect_true(any(vapply(p$layers, function(l) identical(l$aes_params$fill, "white"), logical(1))))
 
   one <- qq_plot(gw, by = "none")

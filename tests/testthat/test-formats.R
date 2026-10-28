@@ -62,7 +62,7 @@ test_that("chromosome X is laid out after the autosomes and labelled", {
   gw <- simulate_gwas(n_variants = 2e4, seed = 2)
   x <- gw[gw$CHR <= 3, ]
   x$CHR[x$CHR == 3] <- 23
-  p <- brownstone(x, effects = "none")
+  p <- manhattan(x, effects = "none")
   sc <- ggplot2::ggplot_build(p)$layout$panel_params[[1]]$x
   expect_equal(sc$get_labels(), c("1", "2", "X"))
 })
@@ -73,6 +73,6 @@ test_that("a plot whose hits are all suggestive draws without warnings", {
   gw <- gw[gw$P > 5e-8, ]
   f <- tempfile(fileext = ".png")
   on.exit(unlink(f))
-  expect_no_warning(ggplot2::ggsave(f, brownstone(gw, suggestive = 1e-4), width = 6, height = 4,
+  expect_no_warning(ggplot2::ggsave(f, manhattan(gw, suggestive = 1e-4), width = 6, height = 4,
                                     device = ragg::agg_png))
 })

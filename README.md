@@ -1,21 +1,19 @@
-# brownstone
+# maffect
 
-**Brownstone plots**: a successor to the GWAS Manhattan plot. Alongside the usual −log₁₀(*P*) skyline it shows **how big each effect is (and how precise)**, **whether a signal comes from a common or a rare variant**, and **which gene each locus sits in**, in a clean modern style built on ggplot2.
+**maffect**: a successor to the GWAS Manhattan plot. Alongside the usual −log₁₀(*P*) skyline it shows **how big each effect is (and how precise)**, **whether a signal comes from a common or a rare variant**, and **which gene each locus sits in**, in a clean modern style built on ggplot2.
 
-![A Brownstone plot of a simulated GWAS](man/figures/brownstone_sim.png)
+![A Manhattan plot of a simulated GWAS](man/figures/manhattan_sim.png)
 
-*`brownstone(simulate_gwas(), suggestive = 1e-5)`*
-
-**Why "brownstone"?** The name is a play on the Manhattan plot, which is named for the city skyline its towers of *P*-values resemble. Across the East River from Manhattan's skyscrapers stand Brooklyn's low-rise brownstones, just as the effect-size track here sits low beneath the *P*-value skyline.
+*`manhattan(simulate_gwas(), suggestive = 1e-5)`*
 
 ## What it adds to a classic Manhattan plot
 
-| Classic Manhattan | brownstone |
+| Classic Manhattan | maffect |
 |---|---|
 | Shows *P* only; a huge-*N* common variant with a tiny effect looks the same as a rare variant with a huge one. | An **effect track** beneath the chromosome axis shows the size of each lead variant's effect, \|β\| (or the OR of the risk allele) ± 95% CI. Each tower of *P*-values stands directly above its own effect estimate. |
 | No sign of allele frequency, so rare- and common-variant signals are indistinguishable. | Significant variants are **coloured by minor allele frequency** (blue ≥ 5%, aqua 1–5%, orange 0.1–1%, berry < 0.1%, or a continuous scale), in both panels, with colour-blind-safe palettes. The pattern of rare variants with large effects is visible at a glance. |
 | Gene names added by hand afterwards. | Loci are clumped and **labelled with the nearest gene** automatically (Ensembl, GRCh37 or GRCh38), or with any labels you supply. |
-| One giant locus (APOE, HLA, ...) flattens everything else. | The axes **react to the data**. If anything passes −log₁₀ *P* = 20, the y axis breaks there and puts the long tail on a compressed log scale, so most of the height goes to the region around the significance lines. The effect axis does the same when one effect (typically a rare variant's) dwarfs the rest. |
+| One giant locus (APOE, HLA, ...) flattens everything else. | The axes **react to the data**. Only once a locus climbs well past the significance line (−log₁₀ *P* at least twice the default 20) does the y axis break and send the long tail onto a compressed log scale, so most of the height stays with the region around the significance lines. The effect axis does the same when one effect (typically a rare variant's) dwarfs the rest. |
 | Suggestive peaks are a line at best. | An optional **suggestive tier**: peaks between 10⁻⁵ and 5 × 10⁻⁸ are drawn as hollow rings and labelled in grey. |
 | Dated base-graphics look. | Minimal chrome: alternating chromosome bands, grey noise floor, colour reserved for hits. |
 
@@ -23,7 +21,7 @@
 
 ```r
 # from a local clone
-devtools::install("path/to/brownstone")
+devtools::install("path/to/maffect")
 ```
 
 Depends on ggplot2 (≥ 3.5), ggrepel, patchwork and scales.
@@ -31,17 +29,17 @@ Depends on ggplot2 (≥ 3.5), ggrepel, patchwork and scales.
 ## Quick start
 
 ```r
-library(brownstone)
+library(maffect)
 
 gwas <- simulate_gwas()          # or your own summary statistics
-brownstone(gwas)              # GRCh38 positions by default
-brownstone(my_sumstats, build = "GRCh37")
+manhattan(gwas)              # GRCh38 positions by default
+manhattan(my_sumstats, build = "GRCh37")
 ```
 
 Columns are detected automatically from the usual names used by PLINK, REGENIE, BOLT-LMM, SAIGE, METAL and the GWAS-SSF standard (`CHR`/`#CHROM`/`chromosome`, `BP`/`POS`/`GENPOS`/`base_pair_location`, `P`/`p_value`/`LOG10P`, `BETA`/`OR`, `SE`, `EAF`/`A1FREQ`/`MAF`, `SNP`/`rsid`/`ID`, ...). Anything else can be named explicitly:
 
 ```r
-brownstone(ldl, chr = "CHR", pos = "BP", p = "P-value", eaf = "Freq.A1.1000G.EUR",
+manhattan(ldl, chr = "CHR", pos = "BP", p = "P-value", eaf = "Freq.A1.1000G.EUR",
               build = "GRCh37")
 ```
 
@@ -63,7 +61,7 @@ For that file this shrank the table in memory from 3.15 to 2.34 GB, and the read
 - **Coloured points**: variants with *P* < 5 × 10⁻⁸, coloured by minor allele frequency class, rarest drawn on top. Significant variants with no frequency are drawn as "Unknown", in a light grey underneath the rest. With `maf_scale = "continuous"`, colour follows log₁₀(MAF) on a viridis ramp instead (dark purple = rare). There are no cut-offs, and every variant above 10% shares one green so the towers stay calm. Colour always follows the *minor* allele frequency, which, unlike the effect allele frequency, doesn't depend on which allele the GWAS reported.
 - **Hollow rings** (with `suggestive = 1e-5`): peaks that reach the suggestive line but not genome-wide significance, in their frequency colour. They are labelled in grey after the genome-wide significant loci, and shown on the effect track as hollow points (`label_suggestive`, `track_suggestive`). Variants between the two lines that belong to a significant locus stay grey, because they are the base of its tower, not a peak of their own.
 - **Labels**: one per locus (most significant first, up to `max_labels`), italic for gene symbols.
-- **Broken axis**: a white strip edged with hairlines, at 2.5 × the significance line (−log₁₀ *P* = 20 for 5 × 10⁻⁸), drawn only when something goes above it. Below it the axis is linear; above it −log₁₀ *P* is on a log scale with about 15% of the height per decade, so a locus at 600 still sits above one at 100, but neither steals space from the threshold region. Set the break with `y_compress = 30`, or turn it off with `FALSE`.
+- **Broken axis**: a white gap across the plot, at 2.5 × the significance line (−log₁₀ *P* = 20 for 5 × 10⁻⁸), drawn only once the data climb to about twice that point. Below it the axis is linear; above it −log₁₀ *P* is on a log scale with about 15% of the height per decade, so a locus at 600 still sits above one at 100, but neither steals space from the threshold region. Set the break with `y_compress = 30`, or turn it off with `FALSE`.
 - **Effect track**: the size of every hit's effect, \|β\|, i.e. the effect per copy of the trait-increasing allele (for odds ratios, the OR of the risk allele). Lead variants are large points with their 95% CI; every other hit is a small point. Most of these are LD proxies, sitting just under their lead, because LD only ever shrinks a proxy's expected effect, so a point clearly above its lead suggests a second signal. `track_variants = "leads"` shows the leads alone. The sign is left out by default because for a single variant it only says which allele the GWAS happened to report. It starts to matter when you compare, e.g. across traits or for MR. `effects = "signed"` keeps it, oriented to the minor allele, for lead variants only, since proxies are reported against arbitrary alleles. The axis is linear, so effects are drawn in proportion, unless a few estimates dwarf the rest (twice the break, which is 3 × the median lead effect rounded up, so at least 6 × the median). Then it breaks like the P-value axis and puts the outliers on a log scale at the top of the track. Wide confidence intervals alone never trigger it. `effect_scale = "sqrt"` gives a smooth square-root scale instead.
 - **Allelic series**: the track also shows the strongest variant of each other frequency class within a locus, but only when it is too significant to be an LD shadow of the locus lead (see below). A common and a rare signal at the same gene then appear as two dots, one above the other.
 
@@ -71,14 +69,14 @@ For that file this shrank the table in memory from 3.15 to 2.34 GB, and the read
 
 GLGC 2013 LDL cholesterol (2.4 M HapMap-imputed variants, hg19; [Willer et al. 2013](https://doi.org/10.1038/ng.2797)). *PCSK9* rs11591147 (R46L, MAF 1.7%) stands out with no special handling: it's a low-frequency variant with one of the two largest effects on the track. *APOE* rs7412's *P*-value (1.24 × 10⁻⁶⁵²) is too small for a double. It is read exactly from the text, and *P*-values that are already 0 fall back to β/SE.
 
-![GLGC LDL cholesterol](man/figures/brownstone_glgc_ldl.png)
+![GLGC LDL cholesterol](man/figures/manhattan_glgc_ldl.png)
 
 ```r
 ldl <- data.table::fread("jointGwasMc_LDL.txt.gz", data.table = FALSE)
 chr_pos <- do.call(rbind, strsplit(ldl$SNP_hg19, ":", fixed = TRUE))   # "chr10:9960129"
 ldl$CHR <- chr_pos[, 1]
 ldl$BP <- as.numeric(chr_pos[, 2])
-brownstone(ldl, eaf = "Freq.A1.1000G.EUR", build = "GRCh37")
+manhattan(ldl, eaf = "Freq.A1.1000G.EUR", build = "GRCh37")
 ```
 
 ## Colour-blind safety
@@ -93,19 +91,19 @@ Aqua is slightly under 3:1 contrast against white. The legend and direct labels 
 
 ## Tested on
 
-- **FinnGen release 12**, pure hypercholesterolaemia (E4_HYPERCHOL). This is REGENIE output for a binary trait (log odds ratios): 21.3 million variants, including 838k on chromosome X. On a 10-core Apple M4 laptop with 32 GB of memory, reading the file with `data.table::fread()` took about 16 s. `brownstone()` then built the plot in 3.8 s, and saving it as a 12 × 6.5 in PNG took 1.1 s (4 s as a PDF). `qq_plot()` took 4 s, plus 0.1 s to save. The whole run peaked at 7.2 GB of memory, including the 3.1 GB input table.
+- **FinnGen release 12**, pure hypercholesterolaemia (E4_HYPERCHOL). This is REGENIE output for a binary trait (log odds ratios): 21.3 million variants, including 838k on chromosome X. On a 10-core Apple M4 laptop with 32 GB of memory, reading the file with `data.table::fread()` took about 18 s. `manhattan()` then built the plot in 4.2 s, and saving it as a 12 × 6.5 in PNG took 1.2 s (4.1 s as a PDF). `qq_plot()` took 4.0 s, `volcano_plot()` 6.6 s and `effect_vs_maf()` 9.4 s. The whole run peaked at 8.9 GB of memory, including the 3.15 GB input table.
 - **GLGC 2013 LDL cholesterol**, 2.4 million variants on hg19.
 - **The example binary-trait outputs that ship with REGENIE and SAIGE**, including SAIGE on chromosome X. The −log₁₀ *P* values computed by the package match those in the files exactly.
 
-`vignette("brownstone")` walks through the options. A draft JOSS paper is in [article/paper.md](article/paper.md).
+`vignette("maffect")` walks through the options. A draft JOSS paper is in [article/paper.md](article/paper.md).
 
 ## Annotating loci
 
 ```r
-brownstone(gwas)                      # nearest protein-coding gene (default)
-brownstone(gwas, labels = "snp")      # variant IDs
-brownstone(gwas, labels = "GENE")     # a column of your own (e.g. from FUMA or VEP)
-brownstone(gwas, labels = NULL)       # no labels
+manhattan(gwas)                      # nearest protein-coding gene (default)
+manhattan(gwas, labels = "snp")      # variant IDs
+manhattan(gwas, labels = "GENE")     # a column of your own (e.g. from FUMA or VEP)
+manhattan(gwas, labels = NULL)       # no labels
 ```
 
 For anything else, pass a table with a `label` column and either `snp` or `chr` + `pos`. An optional `fontface` column styles individual labels. `find_loci()` returns a ready-made table of lead variants to start from:
@@ -114,10 +112,10 @@ For anything else, pass a table with a `label` column and either `snp` or `chr` 
 loci <- find_loci(gwas)                  # lead variants, nearest gene, locus span
 loci$label <- loci$gene
 loci$fontface <- ifelse(loci$gene %in% known_genes, "italic", "bold.italic")
-brownstone(gwas, labels = loci) + patchwork::plot_annotation(subtitle = "Novel loci in bold")
+manhattan(gwas, labels = loci) + patchwork::plot_annotation(subtitle = "Novel loci in bold")
 ```
 
-![Novel loci in bold](man/figures/brownstone_custom_labels.png)
+![Novel loci in bold](man/figures/manhattan_custom_labels.png)
 
 ## Other options
 
@@ -133,7 +131,7 @@ brownstone(gwas, labels = loci) + patchwork::plot_annotation(subtitle = "Novel l
 | `allelic_series` | `TRUE` | `FALSE` shows one variant per locus on the track. |
 | `maf_breaks` | `c(0.001, 0.01, 0.05)` | Frequency class boundaries: ultra-rare, rare, low-frequency, common. |
 | `colours` | `maf_colours()` | Class colours, or a ramp for the continuous scale. `maf_colours(palette = "ordinal")` gives a one-hue light-to-dark set. |
-| `y_compress` | `"auto"` | Break at 20 (for 5 × 10⁻⁸) if anything passes it; a number sets the break; `FALSE` turns it off. |
+| `y_compress` | `"auto"` | Break at 20 (for 5 × 10⁻⁸), once the data reach about twice that; a number sets the break; `FALSE` turns it off. |
 | `effect_allele` | `"minor"` | For signed effects: `"as_is"` keeps effects oriented as in the input. |
 | `track_variants` | `"all"` | \|β\| of every hit (and every suggestive variant, with `suggestive` set); `"leads"` for the lead variants only. Signed effects always show leads only. |
 | `track_suggestive` | `TRUE` | Put suggestive loci on the effect track (with `suggestive` set). |
@@ -154,9 +152,43 @@ qq_plot(gwas)
 
 Rare-variant tests are often calibrated differently from common-variant ones, and a single curve hides that. In FinnGen's hypercholesterolaemia GWAS, for example, λ is 1.25 for common variants but 1.05 for variants rarer than 0.1%. The grey bands are pointwise 95% intervals, one per class. λ assumes 1-df tests, and under polygenicity it grows with sample size even without confounding (the LD score regression intercept tells the two apart). `qq_plot()` warns when the *P*-values look filtered (fewer than a quarter above 0.5), because a QQ plot needs every tested variant.
 
+## Effect size against allele frequency
+
+`effect_vs_maf()` plots each variant's |β| against its minor allele frequency (log scale), the picture of a GWAS with both rare and common variants: rare variants with large effects, common ones with small effects. Genome-wide significant variants are solid, suggestive peaks are hollow rings, and the grey cloud is everything else. Loci are labelled alternately by their effect size and their significance, so the most elevated points are named. Like the effect track, the effect axis breaks when a few estimates dwarf the rest.
+
+```r
+effect_vs_maf(gwas, suggestive = 1e-5)
+```
+
+![Effect size against minor allele frequency](man/figures/effect_vs_maf_sim.png)
+
+The curve is the **detection boundary**: the smallest effect this study could have found at each frequency (80% power at the significance threshold), worked out from the study's own standard errors. An empty corner of rare variants with small effects therefore means "too small for this study to see", not "not there". For case-control data with case and control allele frequencies, a lead variant whose effect disagrees with the crude odds ratio those frequencies imply is ringed in black; `find_artifacts()` returns the numbers.
+
+## Volcano plot
+
+`volcano_plot()` plots signed effect against −log₁₀ *P*, with the hits coloured by frequency as in `manhattan()`. Rare variants have large standard errors, so even null ones can have large estimates: that is the wings of the grey cloud.
+
+```r
+volcano_plot(gwas)
+```
+
+![Volcano plot of the simulated GWAS](man/figures/volcano_sim.png)
+
+## Regional plots with LD
+
+`region_plot()` zooms in on one locus, in the style of LocusZoom: −log₁₀ *P* by position, coloured by LD with the lead variant (r²), above an effect track and a gene track. Shape is the frequency class (circle ≥ 5%, square 1–5%, triangle 0.1–1%, star < 0.1%), so a light triangle standing high is a rare signal of its own. LD comes from [LDlink](https://ldlink.nih.gov) (a free token in `LDLINK_TOKEN`), or from a table of your own; `simulate_gwas()` stores the LD it simulated, so this runs offline:
+
+```r
+dense <- simulate_gwas()
+region_plot(dense, gene = "LDLR", ld = attr(dense, "ld"))
+region_plot(sumstats, gene = "PCSK9")        # LD from LDlink, EUR
+```
+
+![Regional plot of the LDLR locus](man/figures/region_sim.png)
+
 ## Comparing two GWAS
 
-`miami_plot()` puts two GWAS (two sexes, two ancestries, a discovery and a replication) on one genome axis. The first GWAS's Manhattan rises above the chromosome axis and the second's hangs below it. Beneath them, the |β| track does the same: the first GWAS's effects rise from a zero line and the second's hang from it. Both halves share the −log<sub>10</sub>(*P*) axis, the |β| axis and the frequency colours, so heights mean the same thing above and below the line.
+`miami_plot()` puts two GWAS (two sexes, two ancestries, a discovery and a replication) on one genome axis. In the example below the two are separate simulated cohorts, with their own variants and noise: some loci are in both, some only in one, and the strength of the shared ones differs. The first GWAS's Manhattan rises above the chromosome axis and the second's hangs below it. Beneath them, the |β| track does the same: the first GWAS's effects rise from a zero line and the second's hang from it. Both halves share the −log<sub>10</sub>(*P*) axis, the |β| axis and the frequency colours, so heights mean the same thing above and below the line.
 
 ```r
 miami_plot(men, women)                         # halves named after the arguments
@@ -191,15 +223,18 @@ The same simulated GWAS through `qqman::manhattan()`:
 
 ## Functions
 
-- `brownstone()`: the plot.
+- `manhattan()`: the plot.
 - `miami_plot()`: two GWAS, one above and one below the chromosome axis, with their |β| tracks.
 - `forest_plot()`: lead-variant effects with 95% CIs; `compare =` sets two GWAS side by side.
 - `qq_plot()`: QQ plot by allele frequency class, with genomic inflation.
+- `effect_vs_maf()`: |β| against minor allele frequency, with the detection boundary.
+- `volcano_plot()`: signed effect against −log₁₀ *P*.
+- `region_plot()`: a regional plot with LD, effects and genes; `ld_proxy()` fetches LD from LDlink.
+- `find_artifacts()`: lead variants whose effects disagree with their own case and control allele frequencies.
 - `find_loci()`: lead variants by distance clumping, with nearest genes.
 - `nearest_gene()`: nearest protein-coding gene to any positions.
 - `standardise_sumstats()`: column detection and cleaning.
 - `simulate_gwas()`: realistic simulated summary statistics (common and rare causal variants with LD).
-- `theme_brownstone()`, `maf_colours()`: styling.
+- `theme_maffect()`, `maf_colours()`: styling.
 - `genes_grch37`, `genes_grch38`: protein-coding gene coordinates from Ensembl (GRCh37 release 87, release 116).
 
-The design iterations behind these choices, including the alternatives that were rejected, are in [design/DESIGN.md](design/DESIGN.md).

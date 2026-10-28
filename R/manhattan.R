@@ -1,10 +1,7 @@
-#' Brownstone plot: a Manhattan plot that also shows effect sizes, allele frequency and genes
+#' Manhattan plot with effect sizes, allele frequency and genes
 #'
 #' @description
-#' Draws a Brownstone plot: a Manhattan plot that answers three questions a
-#' classic one can't. (The name: across the East River from Manhattan's
-#' towers, Brooklyn is lined with low-rise brownstones; here a low-rise
-#' effect-size track sits beneath the skyline of P-values.)
+#' Draws a Manhattan plot that answers three questions a classic one can't.
 #'
 #' * **How big is each effect, and how precise?** Beneath the chromosome axis an
 #'   aligned track shows the size of each lead variant's effect (|beta|, or the
@@ -96,8 +93,9 @@
 #'   of the panel height per decade (12-35% in total, and never more than a
 #'   linear axis would give it), so the long tails keep their order without
 #'   taking space from the threshold region. `"auto"` (the default) breaks at
-#'   2.5 times the significance line, rounded (20 for 5e-8), and only when
-#'   something goes above it; a number sets the break; `FALSE` turns it off.
+#'   2.5 times the significance line, rounded (20 for 5e-8), and only once the
+#'   data climb to about twice that line; a number sets the break; `FALSE`
+#'   turns it off.
 #' @param track_height Fraction of the figure height given to the effect track.
 #' @param track_variants `"all"` (the default) shows every variant drawn in
 #'   colour in the main panel: lead variants as large points with their 95%
@@ -124,8 +122,8 @@
 #' @export
 #' @examples
 #' gwas <- simulate_gwas(n_variants = 2e5)
-#' brownstone(gwas)
-brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
+#' manhattan(gwas)
+manhattan <- function(data, ..., build = c("GRCh38", "GRCh37"),
                           threshold = 5e-8, suggestive = NULL,
                           labels = "nearest_gene", label_suggestive = TRUE,
                           track_suggestive = TRUE,
@@ -217,7 +215,7 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
   # Titles added with plot_annotation() take the theme's (large, centred) style.
   patchwork::wrap_plots(main, track, ncol = 1,
                         heights = c(1 - track_height, track_height)) +
-    patchwork::plot_annotation(theme = theme_brownstone(base_size = base_size))
+    patchwork::plot_annotation(theme = theme_maffect(base_size = base_size))
 }
 
 `%||%` <- function(a, b) if (is.null(a)) b else a
@@ -497,6 +495,13 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
   out[!is.na(i), ]
 }
 
+# Chromosome numbers at the note size, the smallest text of the package: the
+# short chromosomes 19-22 are close together, and at the axis size a wider
+# typeface (Avenir Next) loses 21 to the overlap check at 8 in.
+.chr_axis_text <- function(base_size) {
+  ggplot2::theme(axis.text.x = ggplot2::element_text(size = base_size * .text_size$note))
+}
+
 # `top_title` adds a title above the panel, below any legend (miami_plot()
 # names its upper half this way).
 .x_scale <- function(layout, labels = TRUE, top_title = NULL) {
@@ -519,16 +524,10 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
 }
 
 # Break the panel where the -log10(P) axis switches to its compressed scale
-# (see .y_compressor()): a white strip edged with hairlines, the usual
-# broken-axis mark.
+# (see .y_compressor()), with the broken-axis mark (see .break_mark()).
 .axis_break <- function(at, ymax) {
   gap <- 0.008 * ymax
-  list(
-    ggplot2::annotate("rect", xmin = -Inf, xmax = Inf, ymin = at - gap, ymax = at + gap,
-                      fill = "white", colour = NA),
-    ggplot2::annotate("segment", x = -Inf, xend = Inf, y = at + c(-gap, gap),
-                      yend = at + c(-gap, gap), colour = .ink$axis, linewidth = 0.3)
-  )
+  .break_mark(at - gap, at + gap, "y")
 }
 
 # "5e-08" -> plotmath for 5 x 10^-8
@@ -538,7 +537,7 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
   if (m == 1) sprintf("10^%d", e) else sprintf("%s %%*%% 10^%d", format(m), e)
 }
 
-# `d` is already thinned (see brownstone()); `max_logp` is the top before thinning.
+# `d` is already thinned (see manhattan()); `max_logp` is the top before thinning.
 # With `down = TRUE` the panel hangs from its top edge (the lower half of a
 # Miami plot): -log10(P) is drawn negated and labelled as positive, which
 # keeps ggrepel's nudges and limits simple.
@@ -617,10 +616,14 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
       data = rep, mapping = ggplot2::aes(x = .data$x, y = .data$y, label = .data$label,
                                          fontface = .data$fontface),
       colour = rep$colour, size = base_size * .text_size$label / ggplot2::.pt,
-      min.segment.length = 0, segment.colour = .ink$muted, segment.size = 0.25,
-      max.overlaps = Inf, seed = 42
+      family = .family(), min.segment.length = 0, segment.colour = .ink$muted, segment.size = 0.25,
+      # A white halo keeps a label legible where it crosses a line or a point.
+      bg.colour = "white", bg.r = 0.12, max.overlaps = Inf, seed = 42
     )
-    above <- sig + 0.03 * ymax
+    # Labels stay above the lowest line any of them belongs to: suggestive
+    # labels may sit between the two lines, beside their own peaks, rather
+    # than being packed in above the significance line among the towers.
+    above <- (if (any(lab$logp < sig)) sugg else sig) + 0.03 * ymax
     p <- p + if (label_angle == 0) {
       do.call(ggrepel::geom_text_repel, c(common, list(
         direction = "both", nudge_y = s * 0.04 * ymax,
@@ -647,7 +650,7 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
     ) +
     ggplot2::labs(x = if (x_axis) "Chromosome" else NULL,
                   y = expression(-log[10](italic(P)))) +
-    theme_brownstone(base_size = base_size) +
+    theme_maffect(base_size = base_size) + .chr_axis_text(base_size) +
     ggplot2::theme(axis.text.y.right = ggplot2::element_text(colour = .ink$muted,
                                                              size = base_size * .text_size$note,
                                                              hjust = 0)) +
@@ -713,19 +716,8 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
   pts_small <- 0.95 * pts
 
   p <- ggplot2::ggplot(eff) + .band_layer(layout)
-  if (!is.null(ax$at)) {
-    # The same broken-axis mark as on the P-value axis.
-    gap_t <- 0.025 * ax$trans$transform(top)
-    edges <- c(ax$at - gap_t, ax$trans$inverse(ax$at + gap_t))
-    if (mode != "magnitude") edges <- c(edges, -edges)
-    for (side in if (mode != "magnitude") c(1, -1) else 1) {
-      e <- sort(side * edges[1:2])
-      p <- p + ggplot2::annotate("rect", xmin = -Inf, xmax = Inf, ymin = e[1], ymax = e[2],
-                                 fill = "white", colour = NA)
-    }
-    p <- p + ggplot2::annotate("segment", x = -Inf, xend = Inf, y = edges, yend = edges,
-                               colour = .ink$axis, linewidth = 0.3)
-  }
+  # The same broken-axis mark as on the P-value axis.
+  p <- p + .effect_break(ax, top, signed = mode != "magnitude", axis = "y")
   p +
     ggplot2::geom_hline(yintercept = 0, colour = .ink$axis, linewidth = 0.4) +
     ggplot2::geom_point(data = cloud[cloud$tier == "base", ],
@@ -762,7 +754,7 @@ brownstone <- function(data, ..., build = c("GRCh38", "GRCh37"),
       expand = ggplot2::expansion(mult = c(0.06, 0.06))
     ) +
     ggplot2::labs(x = "Chromosome", y = ylab) +
-    theme_brownstone(base_size = base_size) +
+    theme_maffect(base_size = base_size) + .chr_axis_text(base_size) +
     ggplot2::theme(panel.grid.major.y = ggplot2::element_blank())
 }
 

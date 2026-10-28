@@ -205,7 +205,7 @@ standardise_sumstats <- function(data, chr = NULL, pos = NULL, p = NULL,
                          effect_allele = c("minor", "as_is"),
                          keep = NULL, quiet = TRUE, ids = TRUE, alleles = FALSE,
                          ccafs = FALSE) {
-  if (inherits(data, "brownstone_sumstats") && all(keep %in% names(data))) return(data)
+  if (inherits(data, "maffect_sumstats") && all(keep %in% names(data))) return(data)
   if (!is.data.frame(data)) stop("`data` must be a data frame.", call. = FALSE)
   effect_allele <- match.arg(effect_allele)
   missing_keep <- setdiff(keep, names(data))
@@ -362,6 +362,6 @@ standardise_sumstats <- function(data, chr = NULL, pos = NULL, p = NULL,
   attr(out, "has_ccaf") <- !is.null(col$af_case)
   attr(out, "effect_scale") <- if (is.null(col$beta) && !is.null(col$or)) "log_or" else "beta"
   attr(out, "effect_allele") <- if (effect_allele == "minor" && !is.null(col$eaf)) "minor" else "as_is"
-  class(out) <- c("brownstone_sumstats", class(out))
+  class(out) <- c("maffect_sumstats", class(out))
   out
 }

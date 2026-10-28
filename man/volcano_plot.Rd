@@ -40,17 +40,17 @@ them on the effect track as hollow points (\code{track_suggestive}). Variants
 between the lines that belong to a genome-wide significant locus stay
 grey: they are the base of that locus's tower, not a peak of their own.}
 
-\item{labels}{How to label loci, as in \code{\link[=brownstone]{brownstone()}}: \code{"nearest_gene"},
+\item{labels}{How to label loci, as in \code{\link[=manhattan]{manhattan()}}: \code{"nearest_gene"},
 \code{"snp"}, a column name, a data frame of labels, or \code{NULL} for none.}
 
-\item{max_labels}{Label at most this many loci (the most significant).}
+\item{max_labels}{Label at most this many loci (see above for which).}
 
 \item{window}{Half-width, in base pairs, used to group significant variants
 into loci; see \code{\link[=find_loci]{find_loci()}}.}
 
 \item{effect_scale}{How the effect axis reacts to the data: \code{"auto"} (the
 default; linear, breaking for outlying estimates), \code{"sqrt"} or \code{"linear"}.
-See \code{\link[=brownstone]{brownstone()}}.}
+See \code{\link[=manhattan]{manhattan()}}.}
 
 \item{maf_breaks}{Boundaries of the minor allele frequency classes. The
 default, \code{c(0.001, 0.01, 0.05)}, gives ultra-rare (< 0.1\%), rare
@@ -65,8 +65,9 @@ the axis is linear; above it -log10(P) is on a log scale given about 15\%
 of the panel height per decade (12-35\% in total, and never more than a
 linear axis would give it), so the long tails keep their order without
 taking space from the threshold region. \code{"auto"} (the default) breaks at
-2.5 times the significance line, rounded (20 for 5e-8), and only when
-something goes above it; a number sets the break; \code{FALSE} turns it off.}
+2.5 times the significance line, rounded (20 for 5e-8), and only once the
+data climb to about twice that line; a number sets the break; \code{FALSE}
+turns it off.}
 
 \item{base_size}{Base font size, in points.}
 
@@ -77,23 +78,25 @@ A ggplot.
 }
 \description{
 Plots each variant's effect size against its -log10(P), in the style of
-\code{\link[=brownstone]{brownstone()}}: a grey cloud for the bulk of the genome, colour for the hits.
+\code{\link[=manhattan]{manhattan()}}: a grey cloud for the bulk of the genome, colour for the hits.
 \itemize{
 \item \strong{Effects are signed}, oriented to the minor allele where an allele
 frequency is available (see \code{effect_allele} in \code{\link[=standardise_sumstats]{standardise_sumstats()}}),
 so that the sign means the same thing at every locus. Odds ratios are drawn
 on the log scale and labelled as odds ratios.
-\item \strong{Hits are coloured by minor allele frequency}, as in \code{\link[=brownstone]{brownstone()}}:
+\item \strong{Hits are coloured by minor allele frequency}, as in \code{\link[=manhattan]{manhattan()}}:
 variants past the significance line are solid, peaks that only reach the
 \code{suggestive} line are hollow rings, and everything else is a grey cloud,
 thinned where points would be drawn on top of each other.
 \item \strong{The effect axis reacts to the data.} Rare variants have large standard
 errors, so even null ones can have large estimates. The axis is linear
 unless a few estimates dwarf the lead effects; then, as on the effect track
-of \code{\link[=brownstone]{brownstone()}}, it breaks and puts the outliers on a log scale
+of \code{\link[=manhattan]{manhattan()}}, it breaks and puts the outliers on a log scale
 (\code{effect_scale}).
 \item \strong{Loci are labelled} with their nearest gene (or \code{labels}), one label per
-locus, most significant first.
+locus: alternately the most significant remaining locus and the largest
+remaining effect, so both the top and the outer edges of the plot are
+named within \code{max_labels}.
 \item \strong{Effects that disagree with their own allele frequencies are flagged.}
 For binary traits whose summary statistics report the allele frequency
 among cases and among controls, a lead variant whose reported effect

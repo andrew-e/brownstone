@@ -52,7 +52,7 @@ test_that("the first GWAS rises, the second hangs, on one -log10(P) scale", {
 
 test_that("one bold rule separates the -log10(P) plot from the |beta| plot", {
   p <- miami_plot(gw, gw2)
-  is_bold <- function(l) inherits(l$geom, "GeomHline") && identical(l$aes_params$linewidth, 1.1)
+  is_bold <- function(l) inherits(l$geom, "GeomHline") && identical(l$aes_params$linewidth, .ground_width)
   expect_true(any(vapply(p[[3]]$layers, is_bold, logical(1))))
   # Nothing else is drawn bold: not the axis between the -log10(P) halves...
   for (k in c(1, 2, 4)) {

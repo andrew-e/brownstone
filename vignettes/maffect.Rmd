@@ -1,8 +1,8 @@
 ---
-title: "Getting started with brownstone"
+title: "Getting started with maffect"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Getting started with brownstone}
+  %\VignetteIndexEntry{Getting started with maffect}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -18,14 +18,14 @@ knitr::opts_chunk$set(
 )
 ```
 
-A classic Manhattan plot shows one thing: how significant each variant is. A Brownstone plot adds the three things people usually look up afterwards:
+A classic Manhattan plot shows one thing: how significant each variant is. maffect adds the three things people usually look up afterwards:
 
 - **How big is the effect?** An effect-size track under the chromosome axis puts each locus's effect, with its 95% confidence interval, directly beneath its tower.
 - **Is the signal from a common or a rare variant?** Significant variants are coloured by minor allele frequency.
 - **Which gene?** Loci are labelled with the nearest protein-coding gene, or with your own labels.
 
 ```{r setup}
-library(brownstone)
+library(maffect)
 ```
 
 ## A first plot
@@ -35,7 +35,7 @@ library(brownstone)
 ```{r first}
 gwas <- simulate_gwas(n_variants = 2e5)
 head(gwas, 3)
-brownstone(gwas)
+manhattan(gwas)
 ```
 
 ### Reading it
@@ -43,7 +43,7 @@ brownstone(gwas)
 - **Grey floor:** every variant below the significance line.
 - **Coloured points:** variants with *P* < 5 × 10^-8^, coloured by minor allele frequency: blue ≥ 5%, aqua 1–5%, orange 0.1–1%, berry < 0.1%. The colours are distinguishable with any common form of colour blindness.
 - **Labels:** the nearest protein-coding gene to each locus's lead variant (Ensembl; set `build = "GRCh37"` for hg19 positions).
-- **Broken y axis:** if anything passes −log~10~ *P* = 20, the axis breaks there and the tail goes on a compressed log scale, keeping most of the height for the region around the threshold.
+- **Broken y axis:** only once a locus climbs well past the significance line (−log~10~ *P* at least twice the default 20) does the axis break, at 20, and send the tail onto a compressed log scale, keeping most of the height for the region around the threshold.
 - **Effect track:** \|β\| for every hit, i.e. the effect per copy of the trait-increasing allele (for odds ratios, the OR of the risk allele). Lead variants are the large points with confidence intervals; the small points are the other hits, mostly LD proxies sitting just below their lead. LD only ever shrinks a proxy's expected effect, so a point clearly above its lead suggests a second signal at that locus. The axis is linear unless a few effects dwarf the rest, in which case it breaks like the *P*-value axis.
 
 ## Your own summary statistics
@@ -52,13 +52,13 @@ Columns are recognised from the usual names written by PLINK, REGENIE, BOLT-LMM,
 
 ```{r formats, eval = FALSE}
 sumstats <- data.table::fread("my_gwas.regenie.gz", data.table = FALSE)
-brownstone(sumstats, build = "GRCh38")
+manhattan(sumstats, build = "GRCh38")
 ```
 
 Anything unusual can be named explicitly:
 
 ```{r explicit, eval = FALSE}
-brownstone(sumstats, chr = "CHR", pos = "BP", p = "P-value",
+manhattan(sumstats, chr = "CHR", pos = "BP", p = "P-value",
               eaf = "Freq.A1.1000G.EUR", build = "GRCh37")
 ```
 
@@ -75,7 +75,7 @@ s <- standardise_sumstats(gwas, quiet = FALSE)
 `suggestive = 1e-5` adds a second line. Peaks that reach it but not genome-wide significance are drawn as hollow rings in their frequency colour, labelled in grey, and shown on the effect track as hollow points.
 
 ```{r suggestive}
-brownstone(gwas, suggestive = 1e-5)
+manhattan(gwas, suggestive = 1e-5)
 ```
 
 Variants between the two lines that belong to a genome-wide significant locus stay grey: they are the base of its tower, not a peak of their own. In very large sequencing-based GWAS the suggestive band fills with chance hits from rare variants, whose large standard errors also put them high on the effect track. `track_suggestive = FALSE` keeps them off it.
@@ -83,8 +83,8 @@ Variants between the two lines that belong to a genome-wide significant locus st
 ## The effect track
 
 ```{r effects, fig.height = 4.2}
-brownstone(gwas, track_variants = "leads")   # one point per locus
-brownstone(gwas, effects = "signed")         # beta with its sign, leads only
+manhattan(gwas, track_variants = "leads")   # one point per locus
+manhattan(gwas, effects = "signed")         # beta with its sign, leads only
 ```
 
 The sign of a single variant's β only says which allele the GWAS reported, so it is left out by default. With `effects = "signed"` effects are oriented to the minor allele (where an effect-allele frequency is available) and only lead variants are drawn, because LD proxies are reported against arbitrary alleles. `effect_scale = "sqrt"` gives a smooth square-root axis instead of the reactive linear one.
@@ -92,7 +92,7 @@ The sign of a single variant's β only says which allele the GWAS reported, so i
 ## Colours
 
 ```{r continuous, fig.height = 4.2}
-brownstone(gwas, maf_scale = "continuous")
+manhattan(gwas, maf_scale = "continuous")
 ```
 
 The continuous scale colours by log~10~(MAF), with every variant above 10% in one colour so that towers of common variants stay uniform. `maf_breaks` changes the class boundaries, and `colours` takes your own palette. `maf_colours()` and `maf_ramp()` return the defaults.
@@ -110,7 +110,7 @@ loci[1:5, c("chr", "pos", "snp", "p", "beta", "maf", "gene")]
 known <- c("CELSR2", "APOB", "LDLR", "APOE", "PCSK9", "HMGCR", "LPA", "CETP")
 loci$label <- loci$gene
 loci$fontface <- ifelse(loci$gene %in% known, "italic", "bold.italic")
-brownstone(gwas, labels = loci) +
+manhattan(gwas, labels = loci) +
   patchwork::plot_annotation(subtitle = "Novel loci in bold")
 ```
 
@@ -133,7 +133,7 @@ qq_plot(gwas)
 
 ## Volcano plot
 
-`volcano_plot()` plots each variant's effect against its −log~10~ *P*, with the hits coloured by minor allele frequency as in `brownstone()`.
+`volcano_plot()` plots each variant's effect against its −log~10~ *P*, with the hits coloured by minor allele frequency as in `manhattan()`.
 
 ```{r volcano}
 volcano_plot(gwas)
@@ -142,7 +142,7 @@ volcano_plot(gwas)
 - **Effects are signed**, oriented to the minor allele where an effect-allele frequency says which allele that is, so a point's side of zero means the same thing at every locus. Odds ratios go on the log scale, labelled as odds ratios.
 - **The grey cloud** is every variant below the line, thinned. Its wide wings are mostly rare variants, whose larger standard errors spread their estimates further from zero.
 - **The effect axis** breaks, as on the effect track, when a few estimates dwarf the lead effects; these are typically ultra-rare variants with large standard errors. `effect_scale = "linear"` keeps it linear.
-- **Labels** go on the lead variant of each locus, most significant first, as in `brownstone()`.
+- **Labels** go on the lead variant of each locus, alternately the most significant remaining locus and the one with the largest remaining effect, so that the outer edges of the plot are named as well as the top (`max_labels`, 20 by default).
 
 ## Effect size and allele frequency
 
@@ -154,10 +154,74 @@ effect_vs_maf(gwas, suggestive = 1e-5)
 
 - **Frequency is the x axis**, with the frequency classes as alternating bands (`maf_breaks`), so the hits are told apart by significance instead of colour: solid for genome-wide significant variants, hollow rings for suggestive peaks.
 - **The grey cloud** is the variants below the line. Its height at each frequency shows how noisy the estimates are there, because standard errors grow as variants get rarer.
-- **Labels** go on genome-wide significant loci only (at most `max_labels`, 10 by default).
+- **The effect axis** breaks, as on the effect track of `manhattan()`, once a few estimates dwarf the lead effects: linear up to 3 times the median lead effect (rounded), then a compressed log scale above it. Ticks above the break show the |β| values there. `effect_scale = "linear"` keeps it linear.
+- **Labels** go on genome-wide significant loci only (at most `max_labels`, 10 by default), alternately the locus with the largest remaining effect and the most significant one, so the most elevated points are named.
 - `effects = "signed"` keeps the sign, oriented to the minor allele. Variants without an allele frequency, or with a frequency of 0, are left out.
+- **The curve** is the detection boundary, explained below.
 
 Winner's curse inflates the estimates of rare-variant hits the most, so the top left of this plot is where effects are least reliable.
+
+### The detection boundary
+
+The curve is the smallest effect this study could have found at each frequency, with 80% power at the significance threshold. A true effect below it would usually be missed. An empty corner of rare variants with small effects therefore means "too small for this study to see", not "not there".
+
+The curve is worked out from the study's own standard errors, in two steps. No sample size is needed.
+
+1. **The typical standard error at each frequency.** A variant's genotype varies by 2*f*(1 − *f*) (its variance under Hardy–Weinberg equilibrium), so its standard error grows as the variant gets rarer: SE(β) ≈ *c* / √(2*f*(1 − *f*)). This holds for quantitative traits and log odds ratios alike. The constant *c* holds everything else: the sample size, the case/control balance, the trait's variance and how the test was calibrated. Rather than asking for a sample size, `effect_vs_maf()` estimates *c* from the variants themselves, as the median of SE × √(2*f*(1 − *f*)). That way the curve describes the study as it was actually run.
+2. **From standard error to effect.** A variant passes the threshold α when |β̂| / SE > *z*~1−α/2~. If its true effect is β, then β̂ / SE is centred on β / SE. It therefore passes with probability `power` when β = (*z*~1−α/2~ + *z*~power~) × SE. At *P* < 5 × 10^-8^ and 80% power, that is 5.45 + 0.84 = 6.29 standard errors.
+
+For example, in FinnGen release 12, *c* = 0.0053. The smallest log odds ratio the study could detect is then 0.75 at MAF 0.1% (an OR of 2.1), 0.24 at 1% (OR 1.27) and 0.047 at 50% (OR 1.05).
+
+How to read it:
+
+- **The grey cloud lies under the curve.** Its variants didn't reach the threshold, so their estimates are less than about 5.45 of their own standard errors (fewer with a `suggestive` line). The curve is at 6.29 typical standard errors.
+- **Some hits fall below the curve.** 80% power is not a hard cut-off: a variant with a smaller effect is found less often, but it can still be found. Also, the curve uses the *typical* standard error, and a single variant's can be smaller, for example if it was measured in more people.
+- **Hits close to the curve at the rare end** are the effects to trust least. They passed the threshold mainly because their estimate came out high, which is winner's curse at its strongest.
+- **At the very rare end, the curve is a little too low.** In FinnGen, standard errors below MAF 0.03% were about 15% larger than the formula predicts, because saddlepoint and Firth tests are conservative there.
+
+`power = c(0.5, 0.8)` draws one curve for each power. `detection = FALSE` removes the curve.
+
+## Effects that disagree with their own allele frequencies
+
+Case-control summary statistics from FinnGen, or from SAIGE, also report each variant's allele frequency among cases and among controls (FinnGen's `af_alt_cases` and `af_alt_controls`; SAIGE's `AF_case` and `AF_ctrl`). Those two frequencies give a second, independent estimate of the odds ratio, the *crude* odds ratio of the allele counts:
+
+crude OR = [*p*~case~ / (1 − *p*~case~)] / [*p*~control~ / (1 − *p*~control~)]
+
+The reported β comes from a regression with covariates (and, for rare variants, often a saddlepoint or Firth test), so the two will not match exactly. However, covariate adjustment changes an odds ratio somewhat, not tenfold. When the two disagree by far more than that, the reported estimate is usually the problem. The typical case is an ultra-rare variant whose test returned an effect that its own allele counts don't support.
+
+The variant near *MAN2B1* in FinnGen release 12 is an example. It has β = 12.59 (SE 1.61), an odds ratio of about 290,000. Its case and control frequencies imply a crude odds ratio of 1.75 (log 0.56). The two log odds ratios differ by 12.03, a factor of about 170,000 between the odds ratios, or 7.5 standard errors.
+
+`find_artifacts()` makes this check for the lead variant of every genome-wide significant locus:
+
+- **`crude_or`** is the odds ratio implied by the two frequencies. The frequencies are first oriented to the same allele as β, so the two estimates are comparable.
+- **`discrepancy`** is β − log(crude OR). **`ratio`** is the same difference as a factor between the two odds ratios, exp(|discrepancy|), in either direction. **`z_discrepancy`** is |discrepancy| / SE.
+- **`flagged`** means the ratio is at least 10, or the discrepancy is at least 6 standard errors. The first rule catches large disagreements, which are typical of ultra-rare variants. The second catches a smaller disagreement that is still many times the estimate's own uncertainty. Set your own thresholds with `ratio =` and `z =`.
+- **Not flagged:** a difference in sign alone (`direction_disagrees` is reported), because with only a few carriers the crude odds ratio is mostly noise. Frequencies of exactly 0 or 1, or missing ones, are skipped, because they may only reflect rounding.
+- **Only lead variants are checked.** A proxy of an artefact inherits a diluted version of its estimate, so checking every hit would flag the same locus many times.
+
+It is a screen, not a test: every number is returned so you can judge each case yourself. The simulated GWAS has no case and control frequencies, so the next example adds some. They agree with each variant's effect up to sampling noise. Then the strongest ultra-rare hit is given the *MAN2B1* estimate:
+
+```{r artefacts}
+set.seed(1)
+cc <- gwas
+crude <- cc$BETA + rnorm(nrow(cc), sd = cc$SE)   # the log OR the frequencies imply
+cc$af_ctrl <- cc$EAF
+cc$af_case <- exp(crude) * cc$EAF / (1 - cc$EAF + exp(crude) * cc$EAF)
+i <- which.min(ifelse(cc$EAF < 0.001, cc$P, 1))
+cc[i, c("BETA", "SE", "P")] <- list(12.6, 1.61, 2 * pnorm(-12.6 / 1.61))
+
+art <- find_artifacts(cc)
+table(art$flagged)
+art[art$flagged, c("snp", "gene", "beta", "crude_or", "ratio", "z_discrepancy")]
+```
+
+The plots use the same check whenever the data have case and control frequency columns. They print the same message and draw a black ring around each flagged lead: on the effect track of `manhattan()` (the main panel is left unmarked), and around the point in `effect_vs_maf()` and `volcano_plot()`. The ring has no legend entry, so the printed message is what explains it.
+
+```{r artefacts-plot}
+manhattan(cc)
+```
+
+To read the case and control frequencies once for several plots of a large file, pass `ccafs = TRUE` to `standardise_sumstats()`.
 
 ## Forest plot of lead loci
 
@@ -187,7 +251,7 @@ miami_plot(gwas, replication, names = c("Discovery", "Replication"))
 
 - **One scale for both.** The halves share the −log~10~ *P* axis (and its break), the |β| axis and the frequency colours. A taller tower or a longer effect means the same thing above and below the line. When one GWAS is much stronger, the other looks flat, and that is the comparison.
 - **Magnitudes only.** The track shows |β| (or the odds ratio of the risk allele), so the two GWAS can be compared without aligning alleles. Both need effect and SE columns on the same scale, either both β or both odds ratios.
-- **Everything else is as in `brownstone()`**: suggestive rings, allelic series, gene labels (`max_labels` per half) and `maf_scale`.
+- **Everything else is as in `manhattan()`**: suggestive rings, allelic series, gene labels (`max_labels` per half) and `maf_scale`.
 
 `forest_plot(compare = )` sets the two GWAS's signed effects side by side, one row per region:
 
@@ -203,7 +267,7 @@ Column names given to either function apply to both GWAS. If the two files name 
 
 ## Regional plots with LD
 
-`region_plot()` zooms in on one locus, in the style of LocusZoom. It plots −log~10~ *P* by position, coloured by linkage disequilibrium (LD) with the lead variant, above an effect track and a gene track. It keeps what a Brownstone plot adds: each variant's frequency class, and its effect size. `simulate_gwas()` stores the LD it simulated, so this example runs offline:
+`region_plot()` zooms in on one locus, in the style of LocusZoom. It plots −log~10~ *P* by position, coloured by linkage disequilibrium (LD) with the lead variant, above an effect track and a gene track. It keeps what a Manhattan plot from this package adds: each variant's frequency class, and its effect size. `simulate_gwas()` stores the LD it simulated, so this example runs offline:
 
 ```{r region, fig.height = 7}
 dense <- simulate_gwas()   # 1 million variants, for a well-filled region
@@ -226,11 +290,11 @@ region_plot(sumstats, snp = "rs11591147", pop = "FIN")
 ld <- ld_proxy("rs11591147", pop = "FIN")              # or fetch the LD yourself
 ```
 
-LDlink's answers are cached for the session. If LDlink is busy it is asked again, with backoff. Without a token `region_plot()` stops and asks for one; to plot without LD, set `use_ld_info = FALSE`. Then, or if LDlink can't be reached, the plot is drawn without LD, coloured by frequency class like a Brownstone plot. `ld` also takes a table of your own, including PLINK `--r2` output.
+LDlink's answers are cached for the session. If LDlink is busy it is asked again, with backoff. Without a token `region_plot()` stops and asks for one; to plot without LD, set `use_ld_info = FALSE`. Then, or if LDlink can't be reached, the plot is drawn without LD, coloured by frequency class like a Manhattan plot. `ld` also takes a table of your own, including PLINK `--r2` output.
 
 ## Large GWAS
 
-Millions of variants below the threshold are thinned to one point per cell of a fine grid before plotting, which is invisible at normal sizes. On a 10-core Apple M4 laptop with 32 GB of memory, the 21.3 million variants of a FinnGen release 12 binary endpoint took about 16 s to read with `data.table::fread()`. Building the plot then took 3.8 s, and saving it as a PNG 1.1 s. The whole run peaked at 7.2 GB of memory, including the 3 GB input table.
+Millions of variants below the threshold are thinned to one point per cell of a fine grid before plotting, which is invisible at normal sizes. On a 10-core Apple M4 laptop with 32 GB of memory, the 21.3 million variants of a FinnGen release 12 binary endpoint took about 18 s to read with `data.table::fread()`. Building the plot then took 4.2 s, and saving it as a PNG 1.2 s. The whole run peaked at 8.9 GB of memory, including the 3.15 GB input table.
 
 Reading only the columns the plots use saves memory and some time. For FinnGen's files, this shrank the table from 3.15 to 2.34 GB:
 
@@ -243,7 +307,7 @@ sumstats <- data.table::fread("finngen_R12_E4_HYPERCHOL.gz", data.table = FALSE,
 Save with a fast raster device:
 
 ```{r save, eval = FALSE}
-p <- brownstone(sumstats)
+p <- manhattan(sumstats)
 ggplot2::ggsave("manhattan.png", p, width = 12, height = 6.5, dpi = 300,
                 device = ragg::agg_png)
 ```
@@ -252,4 +316,4 @@ ggplot2::ggsave("manhattan.png", p, width = 12, height = 6.5, dpi = 300,
 
 - The nearest gene is not necessarily the causal gene.
 - Loci are found by distance (±500 kb around the most significant variant, repeated), not by LD clumping or conditional analysis.
-- Effects are not corrected for winner's curse, which inflates rare variants and loci just past the threshold the most. Very large estimates for ultra-rare variants can also be artefacts of the association test itself.
+- Effects are not corrected for winner's curse, which inflates rare variants and loci just past the threshold the most. Very large estimates for ultra-rare variants can also be artefacts of the association test itself. `find_artifacts()` catches some of them, when case and control frequencies are available.

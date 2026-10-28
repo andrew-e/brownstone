@@ -32,17 +32,25 @@ test_that("one row per lead variant, largest effect at the top", {
   expect_equal((ci$xmax - ci$xmin) / (2 * 1.96), loci$se[match(pts$x, loci$beta)])
 })
 
-test_that("rows are labelled with the nearest gene and the variant ID", {
-  row_labels <- function(p) {
-    vapply(ggplot2::ggplot_build(p)$layout$panel_params[[1]]$y$get_labels(),
+test_that("rows are labelled with the nearest gene, and its variant ID on the right", {
+  row_labels <- function(p, side = "y") {
+    vapply(ggplot2::ggplot_build(p)$layout$panel_params[[1]][[side]]$get_labels(),
            function(e) paste(deparse(e), collapse = ""), "")
   }
   loci <- find_loci(gw)
-  lab <- row_labels(forest_plot(gw))
+  p <- forest_plot(gw)
+  lab <- row_labels(p)
   top <- loci[which.max(abs(loci$beta)), ]
-  expect_match(lab[length(lab)], paste0("italic(\"", top$gene, "\")"), fixed = TRUE)
-  expect_match(lab[length(lab)], paste0("(", .short_id(top$snp), ")"), fixed = TRUE)
-  expect_false(any(grepl("italic", row_labels(forest_plot(gw, annotate = NULL)))))
+  expect_equal(lab[length(lab)], paste0("italic(\"", top$gene, "\")"))
+  ids <- row_labels(p, "y.sec")
+  expect_equal(ids[length(ids)], paste0("\"", .short_id(top$snp), "\""))
+  # The IDs are muted, the genes in ink.
+  expect_equal(p$theme$axis.text.y.right$colour, .ink$muted)
+  expect_equal(p$theme$axis.text.y$colour, .ink$primary)
+  # Without genes the ID is the row's only label, on the left.
+  bare <- forest_plot(gw, annotate = NULL)
+  expect_false(any(grepl("italic", row_labels(bare))))
+  expect_s3_class(.forest_id_axis(list(right = c("''", "''"))), "waiver")
 })
 
 test_that("rows are capped at the most significant loci", {

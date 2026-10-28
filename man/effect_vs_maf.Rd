@@ -45,17 +45,17 @@ them on the effect track as hollow points (\code{track_suggestive}). Variants
 between the lines that belong to a genome-wide significant locus stay
 grey: they are the base of that locus's tower, not a peak of their own.}
 
-\item{labels}{How to label loci, as in \code{\link[=brownstone]{brownstone()}}: \code{"nearest_gene"},
+\item{labels}{How to label loci, as in \code{\link[=manhattan]{manhattan()}}: \code{"nearest_gene"},
 \code{"snp"}, a column name, a data frame of labels, or \code{NULL} for none.}
 
-\item{max_labels}{Label at most this many loci (the most significant).}
+\item{max_labels}{Label at most this many loci (see above for which).}
 
 \item{window}{Half-width, in base pairs, used to group significant variants
 into loci; see \code{\link[=find_loci]{find_loci()}}.}
 
 \item{effect_scale}{How the effect axis reacts to the data: \code{"auto"} (the
 default; linear, breaking for outlying estimates), \code{"sqrt"} or \code{"linear"}.
-See \code{\link[=brownstone]{brownstone()}}.}
+See \code{\link[=manhattan]{manhattan()}}.}
 
 \item{maf_breaks}{Boundaries of the minor allele frequency classes, marked by
 alternating bands and axis ticks.}
@@ -78,7 +78,7 @@ view that shows how rare variants with large effects and common variants
 with small ones fit together in one GWAS.
 \itemize{
 \item \strong{Frequency is on a log scale}, which spreads out the rare end where most
-variants are. Alternating bands mark the frequency classes of \code{\link[=brownstone]{brownstone()}}
+variants are. Alternating bands mark the frequency classes of \code{\link[=manhattan]{manhattan()}}
 (\code{maf_breaks}).
 \item \strong{Significance is shown by style, not colour} (frequency is already on the
 x axis): genome-wide significant variants are solid, peaks that only reach
@@ -86,11 +86,15 @@ the \code{suggestive} line are hollow rings, and everything else is a grey cloud
 thinned where points would be drawn on top of each other.
 \item \strong{Effects are |beta| by default} (or the odds ratio of the risk allele):
 the size of an effect, whichever allele the GWAS reported. With
-\code{effects = "signed"}, beta is oriented to the minor allele. As on the effect
-track of \code{\link[=brownstone]{brownstone()}}, the axis breaks for a few outlying estimates
-(\code{effect_scale}).
+\code{effects = "signed"}, beta is oriented to the minor allele.
+\item \strong{The effect axis reacts to the data}, as on \code{\link[=manhattan]{manhattan()}}'s effect
+track: linear, unless a few estimates dwarf the lead effects; then it
+breaks (at 3 times the median lead effect, rounded) and puts the outliers
+on a log scale (\code{effect_scale}).
 \item \strong{Genome-wide significant loci are labelled} with their nearest gene (or
-\code{labels}), at their lead variant.
+\code{labels}), at their lead variant: alternately the largest remaining effect
+and the most significant remaining locus, so the most elevated points and
+the strongest signals are both named within \code{max_labels}.
 \item \strong{Effects that disagree with their own allele frequencies are flagged.}
 For binary traits whose summary statistics report the allele frequency
 among cases and among controls, a lead variant whose reported effect
@@ -106,7 +110,9 @@ sample size, case/control balance and test calibration of the study as
 actually run, not an idealised one) is estimated from the variants
 themselves: the median of \verb{SE x sqrt(2f(1 - f))}. The boundary is then
 \emph{(z}(1-\emph{α}/2)* + z*(power)\emph{) x typical SE}, with \emph{α} the \code{threshold}.
-\code{detection = FALSE} removes it; \code{power} sets the level, or levels.
+\code{detection = FALSE} removes it; \code{power} sets the level, or levels. Each
+level is named in the right-hand margin, and a curve stops where it
+leaves the effect axis at the rare end.
 }
 
 Variants without an allele frequency, or with a frequency of 0, are left out.

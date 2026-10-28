@@ -40,7 +40,10 @@
 # it, -log10 P goes on a log scale that gets a fixed share of the panel height
 # per decade (`per_decade`, between 12% and 35% in total, and never more than
 # a linear axis would give it), so the long tails keep their order without
-# eating the plot. Nothing happens unless the data go above the break.
+# eating the plot. Nothing happens unless the data go above the break, and an
+# automatic break is only made once the data clear about twice `at`: a break
+# for a locus barely past the line (a regional plot whose lead is at 23) is
+# clutter for almost no gain.
 .y_compressor <- function(max_logp, sig, y_compress = "auto", per_decade = 0.15) {
   at <- if (is.null(y_compress) || isFALSE(y_compress)) {
     NULL
@@ -50,6 +53,9 @@
     .auto_compress_at(sig)
   }
   if (is.null(at) || max_logp <= at) {
+    return(list(f = identity, at = NULL))
+  }
+  if (!is.numeric(y_compress) && max_logp <= 2 * at) {
     return(list(f = identity, at = NULL))
   }
   # Never give the tail more height than a linear axis would have.
@@ -91,6 +97,14 @@
       up <- c(up, v)
       last <- v
     }
+  }
+  # A tail too short for those still gets one label, so the jump in the axis
+  # numbers shows where the scale changes: the largest finer round value in
+  # it, at least a tenth of a decade above the break.
+  if (!length(up)) {
+    fine <- c(1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8) * rep(10^(1:4), each = 10)
+    fine <- fine[fine > comp$at & fine <= max_logp & log10(fine / comp$at) >= 0.1]
+    if (length(fine)) up <- max(fine)
   }
   b <- c(lin, up)
   list(at = comp$f(b), labels = b)
@@ -183,7 +197,7 @@
 }
 
 # Ticks for the effect axis.
-.track_breaks <- function(ax, top, signed, log_or) {
+.track_breaks <- function(ax, top, signed, log_or, roomy = FALSE) {
   if (is.null(ax$at)) {
     if (ax$scale == "linear" && !signed && !log_or) {
       b <- scales::breaks_extended(n = 4)(c(0, top))
@@ -209,9 +223,23 @@
       last <- v
     }
   }
+  # A compressed zone without a tick can't be read at all: fall back to the
+  # largest round value inside it, clear of the break.
+  if (!length(up)) {
+    fine <- if (log_or) {
+      log(c(1.1, 1.2, 1.3, 1.5, 1.75, 2, 2.5, 3, 4, 5, 7.5, 10, 15, 20, 30, 50, 75, 100))
+    } else {
+      c(1, 1.5, 2, 2.5, 3, 4, 5, 7) * rep(10^(-4:3), each = 8)
+    }
+    tr <- ax$trans$transform
+    ok <- fine[fine > ax$at & fine <= top & tr(fine) - tr(ax$at) >= 0.1 * tr(top)]
+    up <- utils::tail(ok, 1)
+  }
   # On a signed track each half is short: drop the tick at the break itself
-  # when there is one above it, or the two collide.
-  if (signed && length(up)) lin <- lin[abs(lin - ax$at) > 1e-12]
+  # when there is one above it, or the two collide. A full-height (or
+  # full-width) panel has room for both, and the break is the tick that says
+  # where the scale changes.
+  if (signed && !roomy && length(up)) lin <- lin[abs(lin - ax$at) > 1e-12]
   b <- c(0, lin, up)
   if (signed) b <- c(-rev(b[b > 0]), b)
   b

@@ -3,7 +3,7 @@
 #' @description
 #' Plots each variant's observed -log10(P) against the value expected if no
 #' variant were associated. By default there is one curve per minor allele
-#' frequency class, in the same colours as [brownstone()], each compared with
+#' frequency class, in the same colours as [manhattan()], each compared with
 #' its own expected distribution: test statistics for rare variants are often
 #' calibrated differently from common ones, and a single curve hides that.
 #' The genomic inflation factor, \eqn{\lambda_{GC}}, is printed on the plot,
@@ -32,10 +32,10 @@
 #'   all stay distinguishable with colour blindness.
 #'
 #' Below the significance line, points that would be drawn on top of each
-#' other are thinned (as in [brownstone()]), so millions of variants plot
+#' other are thinned (as in [manhattan()]), so millions of variants plot
 #' quickly.
 #'
-#' @inheritParams brownstone
+#' @inheritParams manhattan
 #' @param by `"maf"` (the default) draws one curve per minor allele frequency
 #'   class (see `maf_breaks`); `"none"` draws one curve for all variants. Without
 #'   an allele frequency column there is one curve. Any other value names a
@@ -218,7 +218,8 @@ qq_plot <- function(data, ..., by = c("maf", "none"), maf_breaks = c(0.001, 0.01
   } else if (lambda) {
     p <- p + ggplot2::annotate("text", x = 0, y = ymax, hjust = 0, vjust = 1, parse = TRUE,
                                label = sprintf("lambda[GC] == '%s'", fmt(lam)),
-                               size = base_size * .text_size$legend / ggplot2::.pt, colour = .ink$primary)
+                               size = base_size * .text_size$legend / ggplot2::.pt, colour = .ink$primary,
+                               family = .family())
   }
   p +
     ggplot2::scale_x_continuous(limits = c(0, xmax * 1.02), expand = ggplot2::expansion(0)) +
@@ -230,7 +231,7 @@ qq_plot <- function(data, ..., by = c("maf", "none"), maf_breaks = c(0.001, 0.01
     ) +
     ggplot2::labs(x = expression(Expected ~ -log[10](italic(P))),
                   y = expression(Observed ~ -log[10](italic(P)))) +
-    theme_brownstone(base_size = base_size) + .legend_on_top(base_size) +
+    theme_maffect(base_size = base_size) + .legend_on_top(base_size) +
     ggplot2::theme(
       panel.grid.major.x = ggplot2::element_line(colour = .ink$grid, linewidth = 0.3),
       axis.text.y.right = ggplot2::element_text(colour = .ink$muted, size = base_size * .text_size$note,

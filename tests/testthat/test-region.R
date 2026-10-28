@@ -83,7 +83,7 @@ test_that("LD from LDlink is matched to the region, and a build mismatch is caug
   expect_warning(suppressMessages(region_plot(rs, snp = lead, token = "x")), "is `build` right")
 })
 
-test_that("without LD the plot is a zoomed-in Brownstone plot", {
+test_that("without LD the plot is a zoomed-in Manhattan plot", {
   expect_error(region_plot(gw, snp = at("HMGCR"), token = ""), "use_ld_info = FALSE")
   expect_error(region_plot(gw, snp = at("HMGCR"), ld = NULL), "use_ld_info = FALSE")
   p <- suppressMessages(region_plot(gw, snp = at("HMGCR"), token = "", use_ld_info = FALSE))
@@ -123,6 +123,15 @@ test_that("frequency classes are circle, square, triangle, star, rarest most dis
   p <- suppressMessages(region_plot(gw, snp = at("HMGCR"), ld = sim_ld))
   shape <- ggplot2::ggplot_build(p[[1]])$plot$scales$get_scales("starshape")
   expect_equal(shape$name, "Minor allele frequency")
+  # With only common hits every shape is the plain circle: no key for it.
+  lev <- c(">= 5%", "1-5%", "0.1-1%", "< 0.1%")
+  r <- data.frame(class = factor(lev[c(1, 1, 3)], levels = lev), hit = c(TRUE, TRUE, FALSE),
+                  lead = c(TRUE, FALSE, FALSE))
+  ldc <- factor(c("a", "b", "c"), levels = c("a", "b", "No LD data"))
+  guide <- function(r) .region_scales(ldc, r, legend = TRUE)[[2]]$guide
+  expect_identical(guide(r), "none")
+  r$hit[3] <- TRUE
+  expect_s3_class(guide(r), "Guide")
 })
 
 test_that("the -log10(P) panel stands on a ground line, clear of the track", {
@@ -130,10 +139,10 @@ test_that("the -log10(P) panel stands on a ground line, clear of the track", {
   expect_s3_class(p[[1]]$theme$axis.line.x.bottom, "element_line")
   y <- ggplot2::ggplot_build(p[[1]])$layout$panel_params[[1]]$y.range
   expect_lt(y[1], 0)   # the floor stands above the line
-  b <- brownstone(gw)
+  b <- manhattan(gw)
   expect_s3_class(b[[1]]$theme$axis.line.x.bottom, "element_line")
   expect_lt(ggplot2::ggplot_build(b[[1]])$layout$panel_params[[1]]$y.range[1], 0)
-  hanging <- brownstone(gw, track_direction = "down")
+  hanging <- manhattan(gw, track_direction = "down")
   expect_equal(ggplot2::ggplot_build(hanging[[1]])$layout$panel_params[[1]]$y.range[1], 0)
 })
 

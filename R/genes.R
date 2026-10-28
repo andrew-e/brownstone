@@ -16,8 +16,8 @@
 
 .gene_table <- function(build) {
   switch(build,
-         GRCh38 = brownstone::genes_grch38,
-         GRCh37 = brownstone::genes_grch37,
+         GRCh38 = maffect::genes_grch38,
+         GRCh37 = maffect::genes_grch37,
          stop("Unknown build '", build, "'.", call. = FALSE))
 }
 
