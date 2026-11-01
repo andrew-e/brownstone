@@ -4,7 +4,8 @@ This is a new submission.
 
 ## Test environments
 
-* macOS Tahoe 26.7 (aarch64), R 4.6.2: `R CMD check --as-cran`
+* macOS Tahoe 26.7 (aarch64), R 4.6.2: `R CMD check --as-cran`, including the
+  PDF manual (TinyTeX)
 
 ## R CMD check results
 

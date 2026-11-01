@@ -37,7 +37,8 @@
 #'   sample size, case/control balance and test calibration of the study as
 #'   actually run, not an idealised one) is estimated from the variants
 #'   themselves: the median of `SE x sqrt(2f(1 - f))`. The boundary is then
-#'   *(z*(1-*α*/2)* + z*(power)*) x typical SE*, with *α* the `threshold`.
+#'   `(z(1 - alpha/2) + z(power)) x typical SE`, with `alpha` the `threshold`
+#'   and `z()` the standard normal quantile.
 #'   `detection = FALSE` removes it; `power` sets the level, or levels. Each
 #'   level is named in the right-hand margin, and a curve stops where it
 #'   leaves the effect axis at the rare end.

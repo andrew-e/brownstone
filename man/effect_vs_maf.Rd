@@ -109,7 +109,8 @@ quantitative traits and log odds ratios alike, and its constant \emph{c} (the
 sample size, case/control balance and test calibration of the study as
 actually run, not an idealised one) is estimated from the variants
 themselves: the median of \verb{SE x sqrt(2f(1 - f))}. The boundary is then
-\emph{(z}(1-\emph{α}/2)* + z*(power)\emph{) x typical SE}, with \emph{α} the \code{threshold}.
+\verb{(z(1 - alpha/2) + z(power)) x typical SE}, with \code{alpha} the \code{threshold}
+and \code{z()} the standard normal quantile.
 \code{detection = FALSE} removes it; \code{power} sets the level, or levels. Each
 level is named in the right-hand margin, and a curve stops where it
 leaves the effect axis at the rare end.
