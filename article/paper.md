@@ -1,12 +1,12 @@
 ---
-title: 'maffect: Effect size, allele frequency and genes in one Manhattan plot'
+title: 'maffect: A modern GWAS visualisation library for modern GWAS data'
 tags:
   - R
   - genetics
   - genome-wide association study
+  - GWAS
   - data visualization
   - Manhattan plot
-  - FinnGen
 authors:
   - name: Andrew Elmore
     orcid: 0000-0003-0292-447X
@@ -21,9 +21,9 @@ bibliography: paper.bib
 
 # Summary
 
-Genome-wide association studies (GWAS) test millions of genetic variants for association with a trait. Their results are almost always summarised in a Manhattan plot, which shows each variant's −log~10~ *P*-value against its position on the genome, so that associated regions rise like towers. The plot shows where the evidence is strongest, but not what readers ask next: how large is the effect, is the signal carried by a common or a rare variant, and which gene is nearby?
+Genome-wide association studies (GWAS) test millions of genetic variants for association with a trait, and are usually summarised in a Manhattan plot of −log~10~ *P*-values by genomic position. That suits a few loci. Modern GWAS, biobank-scale and sequencing-based, include rare variants and find hundreds of significant loci, so *P* alone no longer says which matter. Readers need each signal's effect size, allele frequency and gene, and the *P*-value conflates the first two.
 
-The R package maffect draws a Manhattan plot that answers all four (\autoref{fig:sim}). Beneath the chromosome axis, an aligned track shows each signal's effect size with its 95% confidence interval. Significant variants are coloured by minor allele frequency (MAF), and loci are labelled with their nearest protein-coding gene. Companion plots use the same encoding (\autoref{fig:suite}): effect size against frequency, with the study's detection limit; a volcano plot; a regional plot with linkage disequilibrium (LD); Miami and forest plots for two GWAS; and a QQ plot by frequency class. The package reads common association tools' output, plots tens of millions of variants in seconds (\autoref{fig:finngen}), and flags lead variants whose effects disagree with their own case and control frequencies.
+The R package maffect is a suite of plots for such data, built around a Manhattan plot that carries all three (\autoref{fig:sim}). Beneath the chromosome axis, an aligned track shows each signal's effect size with its 95% confidence interval. Significant variants are coloured by minor allele frequency (MAF), and loci are labelled with their nearest protein-coding gene, favouring the largest effects. Companion plots share the encoding (\autoref{fig:suite}): effect size against frequency, with the study's detection limit; a volcano plot; a regional plot with linkage disequilibrium (LD); Miami and forest plots for two GWAS; and a QQ plot by frequency class. The package reads common association tools' output, plots tens of millions of variants in seconds (\autoref{fig:finngen}), and flags lead variants whose effects disagree with their own case and control frequencies.
 
 ![A simulated GWAS of one million variants, from `manhattan(gwas, suggestive = 1e-5)`. Top: −log~10~ *P*, log-compressed above 20; solid points reach *P* < 5 × 10^−8^, hollow rings 10^−5^. Colour is the MAF class. Bottom: \|β\| of every hit, leads with 95% confidence intervals.\label{fig:sim}](figures/figure1_simulated.png){width="100%"}
 
@@ -73,9 +73,9 @@ The plots also made two implausible estimates in the FinnGen data visible (\auto
 
 # AI usage disclosure
 
-The software, tests and documentation were produced with the assistance of a large language model (Claude Opus 5.5, Sonnet 5 and Sonnet 5.5, Anthropic, used through Claude Code), at the direction of the author. The author specified the goals, reviewed the figures at each design iteration and made the design decisions.
+The software, tests and documentation were produced with the assistance of a large language model (Anthropic Claude Opus 5.5, used through Claude Code), at the direction of the author. The author specified the goals, reviewed the figures at each design iteration, and reviewed and edited the code. 
 
-Correctness was checked by unit tests (541 expectations) and `R CMD check`; by comparing −log~10~ *P*-values with REGENIE and SAIGE outputs; by runs on public data (FinnGen, GLGC) with inspection of every figure; by checking the palettes against a published model of colour vision deficiency; and by verifying every reference against Crossref, DataCite, PubMed or the publisher's record.
+Correctness was checked by unit tests and `R CMD check`; by comparing −log~10~ *P*-values with REGENIE and SAIGE outputs; by runs on public data (FinnGen, GLGC) with inspection of every figure; by checking the palettes against a published model of colour vision deficiency; and by verifying every reference against Crossref, DataCite, PubMed or the publisher's record.
 
 The author reviewed and edited all generated code and text and takes responsibility for the content.
 

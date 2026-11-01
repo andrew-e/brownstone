@@ -4,12 +4,25 @@
 \name{maffect-package}
 \alias{maffect}
 \alias{maffect-package}
-\title{maffect: Manhattan Plots with Effect Sizes, Allele Frequency and Genes}
+\title{maffect: GWAS Plots with Effect Sizes, Allele Frequency and Genes}
 \description{
-Draws an enhanced GWAS Manhattan plot. Alongside the usual -log10(P) skyline it shows each locus's effect size and its uncertainty on an aligned track beneath the chromosome axis, encodes minor allele frequency so that rare and common variant signals can be read on the same figure, and labels lead variants with their nearest gene (or any label you supply). Built on 'ggplot2' with a clean, modern theme.
+Plots for genome-wide association study (GWAS) results that show effect size and allele frequency alongside significance, for studies with many loci and rare variants. The Manhattan plot adds an aligned track with each locus's effect size and confidence interval, colours variants by minor allele frequency, and labels loci with their nearest gene (or any label you supply). Companion plots show effect size against allele frequency with the study's detection limit, a volcano plot, a regional plot with linkage disequilibrium (from 'LDlink' or your own table), Miami and forest plots to compare two studies, and a QQ plot by frequency class. Output from 'PLINK', 'REGENIE', 'SAIGE', 'BOLT-LMM', 'METAL' and GWAS-SSF files is recognised, and tens of millions of variants plot in seconds. Lead variants whose effect disagrees with their own case and control allele frequencies can be flagged. Built on 'ggplot2'.
+}
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://github.com/andrew-e/maffect}
+  \item Report bugs at \url{https://github.com/andrew-e/maffect/issues}
+}
+
 }
 \author{
-\strong{Maintainer}: Andrew Elmore \email{andrew.elmore@bristol.ac.uk}
+\strong{Maintainer}: Andrew Elmore \email{andrew.elmore@bristol.ac.uk} (\href{https://orcid.org/0000-0003-0292-447X}{ORCID}) [copyright holder]
+
+Authors:
+\itemize{
+  \item Andrew Elmore \email{andrew.elmore@bristol.ac.uk} (\href{https://orcid.org/0000-0003-0292-447X}{ORCID}) [copyright holder]
+}
 
 }
 \keyword{internal}

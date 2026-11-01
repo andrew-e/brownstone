@@ -9,3 +9,9 @@
 ^design$
 ^dev$
 ^doc$
+^cran-comments\.md$
+^CRAN-SUBMISSION$
+^\.DS_Store$
+^.*\.Rproj$
+^\.Rproj\.user$
+^codemeta\.json$

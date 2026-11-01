@@ -20,11 +20,11 @@
 ## Installation
 
 ```r
-# from a local clone
-devtools::install("path/to/maffect")
+# install.packages("pak")
+pak::pak("andrew-e/maffect")
 ```
 
-Depends on ggplot2 (≥ 3.5), ggrepel, patchwork and scales.
+Needs R ≥ 4.1 and the packages ggplot2 (≥ 3.5), ggstar, ggrepel, patchwork, scales and systemfonts, which are installed with it. ragg is optional, for faster PNG output.
 
 ## Quick start
 
